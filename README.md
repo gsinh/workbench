@@ -1,4 +1,4 @@
-# lab
+# workbench
 
 Interactive experiments in voice, latency and real-time systems. Each one is a
 self-contained React component you can drop into your own app, read for the
@@ -9,8 +9,8 @@ Live at [gsinh.com/lab](https://gsinh.com/lab).
 ## Run them
 
 ```bash
-git clone https://github.com/gsinh/lab.git
-cd lab
+git clone https://github.com/gsinh/workbench.git
+cd workbench
 npm install
 npm run dev
 ```
@@ -25,11 +25,11 @@ The package ships **TypeScript source, not a bundle**, so your bundler compiles
 it with the rest of your code and tree-shakes what you do not use.
 
 ```bash
-npm install github:gsinh/lab
+npm install github:gsinh/workbench
 ```
 
 ```tsx
-import { VoiceLatency } from "@gsinh/lab/voice-latency";
+import { VoiceLatency } from "@gsinh/workbench/voice-latency";
 
 export function Page() {
   return <VoiceLatency />;
@@ -41,7 +41,7 @@ needs to be told otherwise. In Next.js:
 
 ```ts
 // next.config.ts
-const nextConfig = { transpilePackages: ["@gsinh/lab"] };
+const nextConfig = { transpilePackages: ["@gsinh/workbench"] };
 ```
 
 Vite, Rollup and Webpack 5 need no configuration.
@@ -102,7 +102,7 @@ page cannot reach, and are sliders with documented defaults.
 one file out of this repo, it is that one:
 
 ```ts
-import { budget, total, PRESETS } from "@gsinh/lab/voice-latency";
+import { budget, total, PRESETS } from "@gsinh/workbench/voice-latency";
 
 total(budget(PRESETS[0].params)); // 3360
 ```

@@ -1,10 +1,10 @@
 {
-  "name": "@gsinh/lab",
+  "name": "@gsinh/workbench",
   "version": "0.1.0",
   "description": "Interactive experiments in voice, latency and real-time systems.",
   "license": "MIT",
   "author": "Gagan Singh",
-  "repository": { "type": "git", "url": "git+https://github.com/gsinh/lab.git" },
+  "repository": { "type": "git", "url": "git+https://github.com/gsinh/workbench.git" },
   "type": "module",
   "sideEffects": false,
   "files": ["src", "README.md", "LICENSE"],
