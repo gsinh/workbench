@@ -1,0 +1,37 @@
+{
+  "name": "@gsinh/lab",
+  "version": "0.1.0",
+  "description": "Interactive experiments in voice, latency and real-time systems.",
+  "license": "MIT",
+  "author": "Gagan Singh",
+  "repository": { "type": "git", "url": "git+https://github.com/gsinh/lab.git" },
+  "type": "module",
+  "sideEffects": false,
+  "files": ["src", "README.md", "LICENSE"],
+  "exports": {
+    ".": "./src/index.ts",
+    "./voice-latency": "./src/voice-latency/index.ts"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@chakra-ui/react": "^3",
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@chakra-ui/react": "^3.37.0",
+    "@emotion/react": "^11.14.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4.3.4",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "typescript": "^5",
+    "vite": "^6.0.7"
+  }
+}
