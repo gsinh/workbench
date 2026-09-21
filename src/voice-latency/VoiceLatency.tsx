@@ -114,6 +114,31 @@ export default function VoiceLatency() {
         of the budget.
       </Text>
 
+      {/* Orientation. The component carries this itself rather than leaving it
+          to the host page: read standalone, the chart gives no clue what the
+          bars are or which one the reader is allowed to change. */}
+      <Box mt="5" ps="3" borderStartWidth="2px" borderColor="colorPalette.solid">
+        <Text fontSize="2xs" color="fg.muted" lineHeight="tall">
+          Every bar is one voice pipeline, cut into the seven costs that sit
+          between the user&rsquo;s last word and the agent&rsquo;s first.{" "}
+          <Text as="span" color="fg">
+            The top bar is yours to change
+          </Text>
+          ; the four under it are fixed reference builds on the same axis.
+          Hover or tab to any segment for what it is and why it costs what it
+          does.
+        </Text>
+        <Text fontSize="2xs" color="fg.muted" mt="2" lineHeight="tall">
+          Start by dragging{" "}
+          <Text as="span" color="fg">
+            Endpointing
+          </Text>
+          . It is pure waiting &mdash; no compute, nothing you can buy your way
+          out of &mdash; and on most builds it is the largest line in the
+          budget.
+        </Text>
+      </Box>
+
       {/* Presets */}
       <Wrap gap="2" mt="5">
         {PRESETS.map((preset) => (
