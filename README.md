@@ -1,6 +1,6 @@
 # workbench
 
-Interactive experiments in voice, latency and real-time systems. Each one is a
+Interactive experiments in voice, telephony and real-time systems. Each one is a
 self-contained React component you can drop into your own app, read for the
 idea, or lift a piece out of.
 
@@ -110,6 +110,48 @@ total(budget(PRESETS[0].params)); // 3360
 A longer write-up — why the stages are in series, why endpointing drifts long,
 the chunk stage nobody draws, and what the model leaves out — is at
 [gsinh.com/lab/voice-agent-latency-budget](https://gsinh.com/lab/voice-agent-latency-budget).
+
+### `stir-shaken` — STIR/SHAKEN inspector
+
+Every signed telephone call carries a PASSporT: a JWT in which the originating
+carrier asserts who is calling and how sure it is. Paste a SIP `Identity`
+header and this decodes it, checks sixteen rules drawn from RFC 8224, RFC 8225,
+RFC 8588 and ATIS-1000074, and verifies the signature.
+
+The attestation explainer is the part worth reading. `A` is routinely taken to
+mean "this call is legitimate". It does not. It means the carrier knows which
+customer bought the number — a fact about billing relationships, not about
+honesty. The panel says what each level asserts and, next to it, what people
+wrongly read into it.
+
+**The signature check is real.** The samples are signed with a genuine P-256
+key against a self-signed certificate carrying the SHAKEN TNAuthList extension
+OID, and verified in the browser by WebCrypto. The "attestation upgraded after
+signing" sample passes every structural check and fails the signature, because
+the attestation really was rewritten from `C` to `A` after signing.
+
+Two honest limits, both stated on the page: a browser generally cannot fetch
+the certificate from `x5u`, because certificate repositories serve no CORS
+headers; and the saved samples are always stale against the 60-second
+freshness window, which is itself the point — an old `iat` is what a replayed
+token looks like.
+
+| Module | What it is | Dependencies |
+| --- | --- | --- |
+| `model.ts` | Parsing and every specification rule | **none** |
+| `crypto.ts` | DER walking to SubjectPublicKeyInfo, WebCrypto verification | WebCrypto |
+| `fixtures.ts` | The certificate and the signed samples | **none** |
+| `StirShaken.tsx` | The inspector UI | React, Chakra |
+
+`crypto.ts` has no ASN.1 dependency — reaching `SubjectPublicKeyInfo` inside an
+X.509 certificate is about forty lines of DER walking, and they are written out
+rather than hidden:
+
+```ts
+import { spkiFromCertificate, pemToDer, verifySignature } from "@gsinh/workbench/stir-shaken";
+
+const spki = spkiFromCertificate(pemToDer(pem)); // feed straight to WebCrypto
+```
 
 ## Licence
 

@@ -5,3 +5,4 @@
  * one of them; this barrel pulls in all of them.
  */
 export * as voiceLatency from "./voice-latency";
+export * as stirShaken from "./stir-shaken";

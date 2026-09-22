@@ -10,7 +10,8 @@
   "files": ["src", "README.md", "LICENSE"],
   "exports": {
     ".": "./src/index.ts",
-    "./voice-latency": "./src/voice-latency/index.ts"
+    "./voice-latency": "./src/voice-latency/index.ts",
+    "./stir-shaken": "./src/stir-shaken/index.ts"
   },
   "scripts": {
     "dev": "vite",

@@ -1,16 +1,20 @@
 import {
   Box,
+  Button,
   ChakraProvider,
   Container,
+  Flex,
   Heading,
   Link,
   List,
   Text,
 } from "@chakra-ui/react";
-import { StrictMode } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { StirShaken } from "../src/stir-shaken";
 import { VoiceLatency } from "../src/voice-latency";
 import { system } from "./system";
+import { apply, initial } from "./color-mode";
 
 const WRITE_UP = "https://gsinh.com/lab/voice-agent-latency-budget";
 
@@ -23,9 +27,30 @@ const WRITE_UP = "https://gsinh.com/lab/voice-agent-latency-budget";
  * being duplicated here, where it would drift.
  */
 function App() {
+  const [mode, setMode] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    const next = initial();
+    setMode(next);
+    apply(next);
+  }, []);
+
   return (
     <ChakraProvider value={system}>
       <Container maxW="4xl" py="10" fontSize="sm">
+        <Flex justify="flex-end" mb="2">
+          <Button
+            size="2xs"
+            variant="outline"
+            onClick={() => {
+              const next = mode === "dark" ? "light" : "dark";
+              setMode(next);
+              apply(next);
+            }}
+          >
+            {mode === "dark" ? "Light" : "Dark"}
+          </Button>
+        </Flex>
         <Heading as="h1" size="lg">
           Voice agent latency budget
         </Heading>
@@ -40,7 +65,20 @@ function App() {
 
         <VoiceLatency />
 
-        <Box mt="10" pt="6" borderTopWidth="1px" borderColor="border">
+        <Box mt="16" pt="10" borderTopWidth="1px" borderColor="border">
+          <Heading as="h1" size="lg">
+            STIR/SHAKEN inspector
+          </Heading>
+          <Text mt="3" color="fg.muted" maxW="2xl" lineHeight="tall">
+            Every signed call carries a PASSporT: a JWT asserting who the
+            carrier thinks is calling. Paste one and this takes it apart —
+            decoded, checked against the specifications line by line, and its
+            signature verified in the browser.
+          </Text>
+          <StirShaken />
+        </Box>
+
+        <Box mt="16" pt="10" borderTopWidth="1px" borderColor="border">
           <Heading as="h2" size="sm">
             Read more
           </Heading>
