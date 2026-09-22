@@ -4,10 +4,17 @@
   "description": "Interactive experiments in voice, latency and real-time systems.",
   "license": "MIT",
   "author": "Gagan Singh",
-  "repository": { "type": "git", "url": "git+https://github.com/gsinh/workbench.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gsinh/workbench.git"
+  },
   "type": "module",
   "sideEffects": false,
-  "files": ["src", "README.md", "LICENSE"],
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./voice-latency": "./src/voice-latency/index.ts",
@@ -35,5 +42,8 @@
     "react-dom": "^19.2.4",
     "typescript": "^5",
     "vite": "^6.0.7"
+  },
+  "dependencies": {
+    "onnxruntime-web": "^1.30.0"
   }
 }
