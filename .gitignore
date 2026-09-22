@@ -2,3 +2,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 .DS_Store
+
+# Harness-served copies of the VAD assets; the originals live in
+# src/vad/assets and node_modules, and are copied in by `npm run dev`.
+public/

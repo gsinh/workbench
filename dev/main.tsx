@@ -12,6 +12,13 @@ import {
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Diarize } from "../src/diarization";
+import { VadCompare } from "../src/vad";
+// onnxruntime-web exports its runtime files as subpaths, so the bundler can
+// resolve them directly. `?url` emits each as an asset and returns its URL,
+// which keeps the .mjs glue untransformed — a dev server handed that file as
+// source will try to compile it and fail.
+import ortMjs from "onnxruntime-web/ort-wasm-simd-threaded.mjs?url";
+import ortWasm from "onnxruntime-web/ort-wasm-simd-threaded.wasm?url";
 import { StirShaken } from "../src/stir-shaken";
 import { VoiceLatency } from "../src/voice-latency";
 import { system } from "./system";
@@ -90,6 +97,23 @@ function App() {
             scored rather than admired.
           </Text>
           <Diarize />
+        </Box>
+
+        <Box mt="16" pt="10" borderTopWidth="1px" borderColor="border">
+          <Heading as="h1" size="lg">
+            Energy versus neural voice activity
+          </Heading>
+          <Text mt="3" color="fg.muted" maxW="2xl" lineHeight="tall">
+            The endpointing question from the latency budget, answered. Two
+            detectors on the same audio: one measures loudness, the other is a
+            2.3 MB model in WebAssembly. Drop a door-slam into the silence and
+            watch which one falls for it.
+          </Text>
+          <VadCompare
+            modelUrl="/vad/silero_vad.onnx"
+            sampleUrl="/vad/speech-sample.wav"
+            wasmPaths={{ mjs: ortMjs, wasm: ortWasm }}
+          />
         </Box>
 
         <Box mt="16" pt="10" borderTopWidth="1px" borderColor="border">

@@ -194,6 +194,57 @@ of the same register, changing channels and background noise, and on all of
 those a trained embedding beats statistics pooling by a wide margin. This is
 the mechanism made legible, not a system to deploy.
 
+### `vad` — Energy versus neural voice activity
+
+Two voice-activity detectors on the same audio: an energy threshold, and
+Silero VAD running in WebAssembly. It answers the question the latency budget
+raises and cannot settle — endpointing is the largest line in that budget, and
+the way to shrink it is a better classifier rather than a smaller number.
+
+The visible result is not the one that was designed for. The door-slam button
+does what it should — energy calls the burst speech, the model does not — but
+the larger difference is that **the energy detector shreds continuous speech
+into fragments** where the model holds it whole. That fragmenting is precisely
+why a naive endpointer needs a long silence window: it is guarding against its
+own dropouts between syllables.
+
+**What it costs, plainly.** The model is 2.3 MB. The runtime that executes it
+is 13.6 MB of WebAssembly, about 3.7 MB compressed — so the honest figure is
+roughly 6 MB over the wire, not the flattering 2.3. That gap is worth noticing
+about on-device inference in a browser generally.
+
+Weights are vendored and served by the host, not fetched from a third-party
+CDN at runtime. Audio never leaves the page.
+
+| Module | What it is | Dependencies |
+| --- | --- | --- |
+| `energy.ts` | Frame energy, noise floor, threshold detector | **none** |
+| `silero.ts` | The ONNX model, loaded on demand | onnxruntime-web |
+| `audio.ts` | Decoding, resampling, the noise-burst injector | Web Audio |
+| `VadCompare.tsx` | Lanes, controls, microphone and file input | React, Chakra |
+
+Two things that will cost you an afternoon if you implement this yourself:
+
+**Silero v5 keeps a 64-sample context that is concatenated outside the graph.**
+The model input is 576 samples, not 512. Feed it a bare frame and inference
+runs, throws nothing, and reports about 0.001 for every frame of clean speech.
+
+**Import `onnxruntime-web/wasm`, not `onnxruntime-web`.** The default entry
+pulls the JSEP build with WebGPU and WebNN support — 27 MB against 13.6 MB,
+for capability a WASM-only session never uses.
+
+```tsx
+import { VadCompare } from "@gsinh/workbench/vad";
+
+<VadCompare
+  modelUrl="/vad/silero_vad.onnx"
+  sampleUrl="/vad/speech-sample.wav"
+  wasmPaths={{ mjs: ortMjs, wasm: ortWasm }}
+/>
+```
+
+The binaries live in `src/vad/assets/` — see the README there for serving them.
+
 ## Licence
 
 MIT. Use it, change it, ship it commercially; just keep the copyright notice.

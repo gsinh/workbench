@@ -39,11 +39,16 @@ export type SileroOptions = {
   /** Where the host serves silero_vad.onnx. */
   modelUrl: string;
   /**
-   * Directory holding onnxruntime's own .wasm binaries. The runtime otherwise
-   * fetches them from a public CDN, which a page claiming to keep everything
-   * local should not be quietly doing.
+   * Where onnxruntime's own runtime files live. The runtime otherwise fetches
+   * them from a public CDN, which a page claiming to keep everything local
+   * should not be quietly doing.
+   *
+   * A string is a directory prefix, which is all a plain static host needs.
+   * The object form exists because some dev servers treat a .mjs under their
+   * public directory as source and try to transform it — there, the host
+   * resolves that file through its own bundler and passes the URL here.
    */
-  wasmPaths?: string;
+  wasmPaths?: string | { wasm?: string; mjs?: string };
 };
 
 export class SileroVad {
@@ -66,7 +71,10 @@ export class SileroVad {
    * neural detector, rather than on every page that mounts the component.
    */
   static async load({ modelUrl, wasmPaths }: SileroOptions): Promise<SileroVad> {
-    const ort = (await import("onnxruntime-web")) as unknown as Ort;
+    // The "wasm" entry rather than the default one: the default pulls the
+    // JSEP build, which carries WebGPU and WebNN support this demo never asks
+    // for and is twice the size — 27 MB against 13.6 MB.
+    const ort = (await import("onnxruntime-web/wasm")) as unknown as Ort;
     if (wasmPaths) ort.env.wasm.wasmPaths = wasmPaths;
     // Single-threaded: cross-origin isolation is required for threads, and a
     // static site generally cannot set the COOP/COEP headers that need.

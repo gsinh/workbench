@@ -19,13 +19,17 @@
     ".": "./src/index.ts",
     "./voice-latency": "./src/voice-latency/index.ts",
     "./stir-shaken": "./src/stir-shaken/index.ts",
-    "./diarization": "./src/diarization/index.ts"
+    "./diarization": "./src/diarization/index.ts",
+    "./vad": "./src/vad/index.ts"
   },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "assets": "node scripts/copy-assets.mjs",
+    "predev": "npm run assets",
+    "prebuild": "npm run assets"
   },
   "peerDependencies": {
     "@chakra-ui/react": "^3",
