@@ -11,6 +11,7 @@ import {
 } from "@chakra-ui/react";
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { Diarize } from "../src/diarization";
 import { StirShaken } from "../src/stir-shaken";
 import { VoiceLatency } from "../src/voice-latency";
 import { system } from "./system";
@@ -76,6 +77,19 @@ function App() {
             signature verified in the browser.
           </Text>
           <StirShaken />
+        </Box>
+
+        <Box mt="16" pt="10" borderTopWidth="1px" borderColor="border">
+          <Heading as="h1" size="lg">
+            Speaker diarization from first principles
+          </Heading>
+          <Text mt="3" color="fg.muted" maxW="2xl" lineHeight="tall">
+            Who spoke when, worked out with no model and no network — framing,
+            MFCCs, statistics pooling, clustering. The sample conversation is
+            synthesised in the page from a known script, so the result can be
+            scored rather than admired.
+          </Text>
+          <Diarize />
         </Box>
 
         <Box mt="16" pt="10" borderTopWidth="1px" borderColor="border">

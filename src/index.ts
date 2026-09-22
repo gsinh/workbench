@@ -6,3 +6,4 @@
  */
 export * as voiceLatency from "./voice-latency";
 export * as stirShaken from "./stir-shaken";
+export * as diarization from "./diarization";

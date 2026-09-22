@@ -153,6 +153,47 @@ import { spkiFromCertificate, pemToDer, verifySignature } from "@gsinh/workbench
 const spki = spkiFromCertificate(pemToDer(pem)); // feed straight to WebCrypto
 ```
 
+### `diarization` — Speaker diarization from first principles
+
+Who spoke when, with no model, no download and no network. The classical
+pipeline, written out rather than imported: frame the audio, take MFCCs, find
+speech by energy, cut it into turns, reduce each turn to a fixed vector by
+statistics pooling, then cluster the vectors.
+
+That embedding — the mean and standard deviation of a segment's MFCCs — is
+exactly what an x-vector network pools to. The difference is that it first
+passes the frames through trained layers and this does not, so the shape of
+the pipeline is the real one and only the representation is weaker.
+
+**It is scored, not asserted.** The sample conversation is synthesised in the
+page from a known script, so the badge reports how many turns the clustering
+actually got right. Forcing the speaker count to three drops it from 5/5 to
+3/5, because the clustering splits a real speaker — the failure mode is on
+screen rather than in a footnote.
+
+| Module | What it is | Dependencies |
+| --- | --- | --- |
+| `dsp.ts` | FFT, mel filterbank, MFCC, cepstral mean normalization, energy VAD | **none** |
+| `cluster.ts` | Segmentation, statistics pooling, agglomerative clustering, PCA | **none** |
+| `synth.ts` | Source-filter synthesis of the sample, and scoring against its script | **none** |
+| `Diarize.tsx` | Timeline, embedding scatter, microphone and file input | React, Chakra |
+
+Three of the four modules are plain TypeScript over `Float32Array`, so the
+whole pipeline runs anywhere — including in a test:
+
+```ts
+import { analyseFrames, DEFAULT_FRAMES, diarize, DEFAULT_OPTIONS } from "@gsinh/workbench/diarization";
+
+const frames = analyseFrames(signal, { sampleRate: 16000, ...DEFAULT_FRAMES });
+const { segments, speakerCount } = diarize(frames, DEFAULT_OPTIONS, signal.length / 16000);
+```
+
+**What it is not.** Two synthetic voices differing in both pitch and formants
+are an easy case. Real diarization has to cope with overlapping speech, voices
+of the same register, changing channels and background noise, and on all of
+those a trained embedding beats statistics pooling by a wide margin. This is
+the mechanism made legible, not a system to deploy.
+
 ## Licence
 
 MIT. Use it, change it, ship it commercially; just keep the copyright notice.
