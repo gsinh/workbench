@@ -52,6 +52,10 @@ import { seriesVar, vizVars } from "./palette";
 export default function VoiceLatency() {
   const [params, setParams] = useState<Params>(DEFAULT_PARAMS);
   const [barge, setBarge] = useState<BargeParams>(DEFAULT_BARGE);
+  // Collapsed on arrival: interruptions are a second question, and the page
+  // should answer the first one before asking it. The headline number stays
+  // visible so the reader knows there is something behind the button.
+  const [showBarge, setShowBarge] = useState(false);
   const [showTable, setShowTable] = useState(false);
 
   const patch = (next: Partial<Params>) =>
@@ -303,117 +307,131 @@ export default function VoiceLatency() {
             {ms(bargeSum)}
           </Text>
         </Flex>
+        <Button
+          size="2xs"
+          variant="outline"
+          mt="3"
+          onClick={() => setShowBarge((open) => !open)}
+          aria-expanded={showBarge}
+        >
+          {showBarge ? "Hide the breakdown" : "Show the breakdown"}
+        </Button>
 
-        {/* Three segments on their own axis, in the first three colour slots
-            — the only trio that clears colour-vision separation on every pair
-            in both modes, which matters here because the middle segment
-            collapses to zero whenever the VAD runs on the device. The tie back
-            to the playout buffer above is carried by the label, not the fill. */}
-        {/* Caption strip, so the marker below is labelled without writing on
-            the bar. */}
-        <Box position="relative" h="4" mt="4" aria-hidden>
-          <Text
-            position="absolute"
-            insetStart={`${(BARGE_THRESHOLD / bargeMax) * 100}%`}
-            ms="1"
-            fontSize="9px"
-            color="fg.muted"
-            whiteSpace="nowrap"
-          >
-            starts to feel rude
-          </Text>
-        </Box>
+        {showBarge && (
+          <>
 
-        <Box position="relative" h="18px">
-          {(() => {
-            const values = BARGE_STAGES.map((stage) => bargeBudget[stage.id]);
-            return BARGE_STAGES.map((stage, i) => {
-              const value = values[i];
-              const start = values.slice(0, i).reduce((a, b) => a + b, 0);
-              if (value <= 0) return null;
-              return (
-                <Box
-                  key={stage.id}
-                  position="absolute"
-                  top="0"
-                  bottom="0"
-                  insetStart={`${(start / bargeMax) * 100}%`}
-                  width={`max(1px, calc(${(value / bargeMax) * 100}% - 2px))`}
-                  bg={seriesVar(i)}
-                  borderEndRadius={
-                    start + value >= bargeSum - 0.01 ? "4px" : "0"
-                  }
-                  title={`${stage.label}: ${ms(value)}`}
-                />
-              );
-            });
-          })()}
-          {/* Drawn over the segments for the same reason as the response
-              chart's marker: behind them it vanishes on exactly the
-              configurations worth flagging. */}
-          <Box
-            position="absolute"
-            top="0"
-            bottom="0"
-            insetStart={`${(BARGE_THRESHOLD / bargeMax) * 100}%`}
-            borderStartWidth="1px"
-            borderStyle="dashed"
-            borderColor="fg"
-            opacity="0.55"
-            pointerEvents="none"
-            aria-hidden
-          />
-        </Box>
-        <Wrap columnGap="4" rowGap="1.5" mt="2">
-          {BARGE_STAGES.map((stage, i) => (
-            <HStack key={stage.id} gap="1.5">
+            {/* Three segments on their own axis, in the first three colour slots
+                — the only trio that clears colour-vision separation on every pair
+                in both modes, which matters here because the middle segment
+                collapses to zero whenever the VAD runs on the device. The tie back
+                to the playout buffer above is carried by the label, not the fill. */}
+            {/* Caption strip, so the marker below is labelled without writing on
+                the bar. */}
+            <Box position="relative" h="4" mt="4" aria-hidden>
+              <Text
+                position="absolute"
+                insetStart={`${(BARGE_THRESHOLD / bargeMax) * 100}%`}
+                ms="1"
+                fontSize="9px"
+                color="fg.muted"
+                whiteSpace="nowrap"
+              >
+                starts to feel rude
+              </Text>
+            </Box>
+
+            <Box position="relative" h="18px">
+              {(() => {
+                const values = BARGE_STAGES.map((stage) => bargeBudget[stage.id]);
+                return BARGE_STAGES.map((stage, i) => {
+                  const value = values[i];
+                  const start = values.slice(0, i).reduce((a, b) => a + b, 0);
+                  if (value <= 0) return null;
+                  return (
+                    <Box
+                      key={stage.id}
+                      position="absolute"
+                      top="0"
+                      bottom="0"
+                      insetStart={`${(start / bargeMax) * 100}%`}
+                      width={`max(1px, calc(${(value / bargeMax) * 100}% - 2px))`}
+                      bg={seriesVar(i)}
+                      borderEndRadius={
+                        start + value >= bargeSum - 0.01 ? "4px" : "0"
+                      }
+                      title={`${stage.label}: ${ms(value)}`}
+                    />
+                  );
+                });
+              })()}
+              {/* Drawn over the segments for the same reason as the response
+                  chart's marker: behind them it vanishes on exactly the
+                  configurations worth flagging. */}
               <Box
-                boxSize="2.5"
-                rounded="2px"
-                bg={seriesVar(i)}
-                flexShrink="0"
+                position="absolute"
+                top="0"
+                bottom="0"
+                insetStart={`${(BARGE_THRESHOLD / bargeMax) * 100}%`}
+                borderStartWidth="1px"
+                borderStyle="dashed"
+                borderColor="fg"
+                opacity="0.55"
+                pointerEvents="none"
+                aria-hidden
               />
-              <Text fontSize="2xs" color="fg.muted">
-                {stage.label}
-              </Text>
-              <Text fontSize="2xs" fontVariantNumeric="tabular-nums">
-                {ms(bargeBudget[stage.id])}
-              </Text>
-            </HStack>
-          ))}
-        </Wrap>
+            </Box>
+            <Wrap columnGap="4" rowGap="1.5" mt="2">
+              {BARGE_STAGES.map((stage, i) => (
+                <HStack key={stage.id} gap="1.5">
+                  <Box
+                    boxSize="2.5"
+                    rounded="2px"
+                    bg={seriesVar(i)}
+                    flexShrink="0"
+                  />
+                  <Text fontSize="2xs" color="fg.muted">
+                    {stage.label}
+                  </Text>
+                  <Text fontSize="2xs" fontVariantNumeric="tabular-nums">
+                    {ms(bargeBudget[stage.id])}
+                  </Text>
+                </HStack>
+              ))}
+            </Wrap>
 
-        <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} gap="4" mt="4">
-          <Knob
-            label="Onset detect"
-            value={barge.onsetMs}
-            onChange={(onsetMs) => setBarge((b) => ({ ...b, onsetMs }))}
-            min={20}
-            max={400}
-            step={10}
-            hint="Lower is twitchier: a cough cuts the agent off."
-          />
-          <Choice<BargeParams["vadAt"]>
-            label="VAD runs"
-            value={barge.vadAt}
-            onChange={(vadAt) => setBarge((b) => ({ ...b, vadAt }))}
-            options={[
-              { value: "client", label: "On device" },
-              { value: "server", label: "On server" },
-            ]}
-            hint="Server-side VAD pays a round trip to cancel."
-          />
-          <Choice<"yes" | "no">
-            label="Playout buffer"
-            value={barge.flushable ? "yes" : "no"}
-            onChange={(v) => setBarge((b) => ({ ...b, flushable: v === "yes" }))}
-            options={[
-              { value: "no", label: "Plays out" },
-              { value: "yes", label: "Flushable" },
-            ]}
-            hint="Dropping queued audio is what makes a cut-off feel instant."
-          />
-        </SimpleGrid>
+            <SimpleGrid columns={{ base: 1, sm: 2, md: 3 }} gap="4" mt="4">
+              <Knob
+                label="Onset detect"
+                value={barge.onsetMs}
+                onChange={(onsetMs) => setBarge((b) => ({ ...b, onsetMs }))}
+                min={20}
+                max={400}
+                step={10}
+                hint="Lower is twitchier: a cough cuts the agent off."
+              />
+              <Choice<BargeParams["vadAt"]>
+                label="VAD runs"
+                value={barge.vadAt}
+                onChange={(vadAt) => setBarge((b) => ({ ...b, vadAt }))}
+                options={[
+                  { value: "client", label: "On device" },
+                  { value: "server", label: "On server" },
+                ]}
+                hint="Server-side VAD pays a round trip to cancel."
+              />
+              <Choice<"yes" | "no">
+                label="Playout buffer"
+                value={barge.flushable ? "yes" : "no"}
+                onChange={(v) => setBarge((b) => ({ ...b, flushable: v === "yes" }))}
+                options={[
+                  { value: "no", label: "Plays out" },
+                  { value: "yes", label: "Flushable" },
+                ]}
+                hint="Dropping queued audio is what makes a cut-off feel instant."
+              />
+            </SimpleGrid>
+          </>
+        )}
       </Box>
 
       <Measure endpointMs={params.endpointMs} onApply={patch} />
