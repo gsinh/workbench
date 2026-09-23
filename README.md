@@ -236,6 +236,14 @@ shows you two rows of coloured blocks about audio you cannot listen to, and no
 way to judge which detector is right — which is how it shipped first, and was
 wrong.
 
+**And a guided tour.** "Take the 1-minute tour" walks through it in seven
+steps: listen, add a door slam, play the slam in a close-up of the second
+around it, load the model, turn the energy margin all the way up, then record
+your own voice. The narration is computed from the run rather than written in
+advance — on the sample clip, Silero fires on none of the slam's five frames,
+and at the maximum 30 dB margin the energy detector still fires on two while
+missing most of the speech it caught at 12 dB.
+
 **What it costs, plainly.** The model is 2.3 MB. The runtime that executes it
 is 13.6 MB of WebAssembly, about 3.7 MB compressed — so the honest figure is
 roughly 6 MB over the wire, not the flattering 2.3. That gap is worth noticing

@@ -46,11 +46,15 @@ export function injectBurst(
   const out = Float32Array.from(signal);
   if (energyDb.length === 0) return { signal: out, atSeconds: 0 };
 
-  // Quietest frame that has room for the burst.
-  let quietest = 0;
-  let quietestDb = Infinity;
+  // Quietest frame that has room for the burst, kept half a second clear of
+  // either end: the leading silence of a clip is usually its quietest stretch,
+  // and a slam at 0.00 s sits on the edge of every chart where no one sees it.
   const needed = Math.round(seconds * SAMPLE_RATE);
-  for (let i = 0; i < energyDb.length; i += 1) {
+  const margin = Math.round((0.5 * SAMPLE_RATE) / frame);
+  const clear = energyDb.length > 4 * margin;
+  let quietest = clear ? margin : 0;
+  let quietestDb = Infinity;
+  for (let i = clear ? margin : 0; i < energyDb.length - (clear ? margin : 0); i += 1) {
     if (i * frame + needed >= out.length) break;
     if (energyDb[i] < quietestDb) {
       quietestDb = energyDb[i];

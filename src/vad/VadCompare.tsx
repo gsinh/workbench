@@ -15,6 +15,18 @@ import { energyVad, frameEnergyDb, noiseFloorDb } from "./energy";
 import { injectBurst, loadAudioFromFile, loadAudioFromUrl, playSignal } from "./audio";
 import { type MicCapture, isSilent, startMicCapture } from "../shared/audio";
 import { seriesVar, vizVars } from "../shared/palette";
+import {
+  Tour,
+  TourButton,
+  type TourStep,
+  clearTourHash,
+  tourFromHash,
+  tourSpotlight,
+} from "../shared/Tour";
+import { useTween } from "../shared/useTween";
+
+/** Frames the injected burst spans: 0.15 s at 32 ms a frame. */
+const BURST_FRAMES = Math.ceil((0.15 * SAMPLE_RATE) / FRAME);
 
 /**
  * What a reader actually pays, stated before they are asked to pay it.
@@ -68,6 +80,22 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
   const model = useRef<SileroVad | null>(null);
   const capture = useRef<MicCapture | null>(null);
 
+  // The close-up's own playback: just the second around the burst.
+  const [slamPlayhead, setSlamPlayhead] = useState<number | null>(null);
+  const stopSlam = useRef<(() => void) | null>(null);
+
+  // Guided tour: the current step, or null when exploring freely, and what
+  // the reader has listened to during each step.
+  const [tourIndex, setTourIndex] = useState<number | null>(null);
+  const tourRef = useRef<number | null>(null);
+  tourRef.current = tourIndex;
+  const [listened, setListened] = useState<Record<number, boolean>>({});
+  const markListened = () => {
+    const at = tourRef.current;
+    if (at !== null) setListened((prev) => ({ ...prev, [at]: true }));
+  };
+  const root = useRef<HTMLDivElement>(null);
+
   /** Run the model over a signal, if it is loaded. */
   const runModel = useCallback(async (signal: Float32Array) => {
     if (!model.current) return { probs: null, inferenceMs: null };
@@ -80,6 +108,8 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
     async (label: string, signal: Float32Array, burstAt: number | null = null) => {
       stopPlayback.current?.();
       stopPlayback.current = null;
+      stopSlam.current?.();
+      stopSlam.current = null;
       setPlayhead(null);
       setBusy(true);
       const energyDb = frameEnergyDb(signal);
@@ -201,12 +231,16 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
     }
     if (!analysis) return;
     setNote(null);
+    stopSlam.current?.();
     stopPlayback.current = playSignal(
       analysis.signal,
       SAMPLE_RATE,
       (seconds) => {
         setPlayhead(seconds);
-        if (seconds === null) stopPlayback.current = null;
+        if (seconds === null) {
+          stopPlayback.current = null;
+          markListened();
+        }
       },
       setNote,
     );
@@ -232,18 +266,160 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
     ? energy.reduce((n, e, i) => n + (e !== neural[i] ? 1 : 0), 0)
     : 0;
   const seconds = analysis ? analysis.signal.length / SAMPLE_RATE : 0;
+  const disagreePct = neural ? (disagreements / Math.max(1, frames)) * 100 : 0;
+  const shownPct = useTween(disagreePct);
+
+  // The burst, in frames, and a window around it for the close-up.
+  const burstFrame =
+    analysis?.burstAt != null ? Math.round((analysis.burstAt * SAMPLE_RATE) / FRAME) : null;
+  const burstRange =
+    burstFrame !== null
+      ? Array.from({ length: BURST_FRAMES }, (_, i) => burstFrame + i).filter((i) => i < frames)
+      : [];
+  const energyOnBurst = burstRange.filter((i) => energy[i]).length;
+  const neuralOnBurst = neural ? burstRange.filter((i) => neural[i]).length : null;
+  const closeFrom = burstFrame !== null ? Math.max(0, burstFrame - 12) : 0;
+  const closeTo = burstFrame !== null ? Math.min(frames, burstFrame + 18) : 0;
+
+  const playSlam = () => {
+    if (stopSlam.current) {
+      stopSlam.current();
+      return;
+    }
+    if (!analysis || burstFrame === null) return;
+    stopPlayback.current?.();
+    stopSlam.current = playSignal(
+      analysis.signal.subarray(closeFrom * FRAME, closeTo * FRAME),
+      SAMPLE_RATE,
+      (at) => {
+        setSlamPlayhead(at);
+        if (at === null) {
+          stopSlam.current = null;
+          markListened();
+        }
+      },
+      setNote,
+    );
+  };
+
+  // Speech the energy detector catches at the current margin against the
+  // default 12 dB, burst frames excluded: the cost of tuning out the slam.
+  const speechFramesAt = (m: number) =>
+    analysis
+      ? energyVad(analysis.energyDb, m).filter((on, i) => on && !burstRange.includes(i)).length
+      : 0;
+  const speechLostPct = analysis
+    ? Math.round((1 - speechFramesAt(margin) / Math.max(1, speechFramesAt(12))) * 100)
+    : 0;
+
+  /** Slide the margin knob, so "Show me" is visibly a turn of the dial. */
+  const slideMargin = (target: number) => {
+    const from = margin;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setMargin(target);
+      return;
+    }
+    const started = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - started) / 900);
+      setMargin(Math.round(from + (target - from) * (1 - (1 - t) ** 3)));
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  };
+
+  const steps: TourStep[] = [
+    {
+      target: "verdict",
+      say: "Two detectors are listening to the same clip. One goes by loudness; the other is a small neural network running in your browser. This tour finds where they disagree, and why it matters.",
+    },
+    {
+      target: "lanes",
+      say: "Listen first. The playhead shows which detector thinks someone is speaking at each moment.",
+      showLabel: "Listen",
+      show: () => {
+        if (!stopPlayback.current) togglePlayback();
+      },
+      done: !!listened[1],
+      after: "The loudness detector's lane (Energy detector) switches off in the short gaps between words. Every one of those gaps is a moment it believes the speaker has finished.",
+    },
+    {
+      target: "inputs",
+      say: "Now drop a door slam into a pause in the speech: loud, sudden, and nothing like a voice.",
+      showLabel: "Add the slam",
+      show: () => void addBurst(),
+      done: burstFrame !== null,
+      after: `The loudness detector calls it speech: ${energyOnBurst} of the slam's ${burstRange.length} frames. The close-up below shows it.`,
+    },
+    {
+      target: "closeup",
+      say: "Here is the slam up close. Play just that second.",
+      showLabel: "Play the slam",
+      show: playSlam,
+      done: !!listened[3],
+      after: "To a loudness detector, loud is loud. It has no way to know that a voice sounds different from a door.",
+    },
+    {
+      target: "closeup",
+      say: "Now ask the neural model. It is about 6 MB, downloaded once, and runs here in your browser.",
+      showLabel: "Load the model",
+      show: () => void loadModel(),
+      done: modelState === "ready" && neuralOnBurst !== null,
+      after:
+        neuralOnBurst === 0
+          ? "Silero did not fire on the slam at all. It learned what speech sounds like, not how loud it is."
+          : `Silero fired on ${neuralOnBurst} of the slam's frames, against ${energyOnBurst} for loudness.`,
+    },
+    {
+      target: "margin",
+      say: "Can the loudness detector be tuned to ignore the slam? Its only setting is how far above the room noise to trigger. Turn it all the way up.",
+      showLabel: "Turn it up for me",
+      show: () => slideMargin(30),
+      done: margin >= 28,
+      after:
+        energyOnBurst > 0
+          ? `At ${margin} dB it still fires on ${energyOnBurst} of the slam's frames, and it now misses ${speechLostPct}% of the speech it caught at 12 dB. Loudness cannot tell a door from a voice, which is why voice agents use a model for this.`
+          : `At ${margin} dB it finally ignores the slam, and misses ${speechLostPct}% of the speech it caught at 12 dB. Loudness cannot tell a door from a voice, which is why voice agents use a model for this.`,
+    },
+    {
+      target: "inputs",
+      say: "Try it on your own voice: record a sentence with a pause in it, then knock on the desk.",
+      showLabel: recording ? "■ Stop and analyse" : "● Record",
+      show: toggleRecording,
+      done: analysis?.label === "Your recording",
+      after: "Compare the lanes on your own recording. Everything here is yours to change.",
+    },
+  ];
+
+  const startTour = () => {
+    setListened({});
+    setTourIndex(0);
+  };
+  const closeTour = () => {
+    setTourIndex(null);
+    clearTourHash();
+  };
+
+  // A #tour-N link opens the tour at that step.
+  useEffect(() => {
+    const at = tourFromHash();
+    if (at !== null) setTourIndex(Math.max(0, Math.min(6, at)));
+  }, []);
 
   return (
-    <Box css={vizVars}>
+    <Box
+      ref={root}
+      css={{ ...vizVars, ...tourSpotlight(tourIndex !== null ? steps[tourIndex].target : null) }}
+    >
       {/* Verdict */}
-      <Flex align="baseline" gap="3" wrap="wrap">
+      <Flex align="baseline" gap="3" wrap="wrap" data-tour="verdict">
         <Text
           fontSize={{ base: "4xl", sm: "5xl" }}
           fontWeight="bold"
           lineHeight="1"
           color={neural ? "colorPalette.fg" : "fg.muted"}
         >
-          {neural ? `${Math.round((disagreements / Math.max(1, frames)) * 100)}%` : "—"}
+          {neural ? `${Math.round(shownPct)}%` : "—"}
         </Text>
         <Box>
           <Text fontSize="xs" fontWeight="bold">
@@ -255,11 +431,14 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
               : `load the model to compare · ${frames} frames`}
           </Text>
         </Box>
-        {analysis?.inferenceMs != null && (
-          <Badge size="sm" variant="subtle" ms="auto">
-            {(seconds / (analysis.inferenceMs / 1000)).toFixed(0)}× real time
-          </Badge>
-        )}
+        <HStack ms="auto" gap="2">
+          {analysis?.inferenceMs != null && (
+            <Badge size="sm" variant="subtle">
+              {(seconds / (analysis.inferenceMs / 1000)).toFixed(0)}× real time
+            </Badge>
+          )}
+          {tourIndex === null && <TourButton id="vad" onStart={startTour} />}
+        </HStack>
       </Flex>
 
       <Box mt="5" ps="3" borderStartWidth="2px" borderColor="colorPalette.solid">
@@ -310,7 +489,7 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
       )}
 
       {/* Inputs */}
-      <Wrap gap="2" mt="5" align="center">
+      <Wrap gap="2" mt="5" align="center" data-tour="inputs">
         <Button
           size="2xs"
           variant="solid"
@@ -382,7 +561,7 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
 
       {/* Lanes */}
       {analysis && frames > 0 && (
-        <Box mt="6">
+        <Box mt="6" data-tour="lanes">
           <Lane
             title="Frame energy"
             caption={`noise floor ${analysis.floorDb.toFixed(0)} dB, threshold ${(analysis.floorDb + margin).toFixed(0)} dB`}
@@ -448,6 +627,69 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
         </Box>
       )}
 
+      {/* Close-up on the burst: the one second the argument is about, big
+          enough to see frame by frame, with its own play button. */}
+      {analysis && burstFrame !== null && closeTo > closeFrom && (
+        <Box
+          data-tour="closeup"
+          mt="6"
+          p="3"
+          borderWidth="1px"
+          borderColor="border"
+          rounded="l2"
+          animation="fade-in 300ms ease-out"
+          _motionReduce={{ animation: "none" }}
+        >
+          <Flex justify="space-between" align="center" gap="3" wrap="wrap" mb="3">
+            <Box>
+              <Text fontSize="xs" fontWeight="bold">
+                Close-up: the slam
+              </Text>
+              <Text fontSize="2xs" color="fg.muted">
+                {((closeTo - closeFrom) * FRAME / SAMPLE_RATE).toFixed(1)}s around it, frame by frame
+              </Text>
+            </Box>
+            <Button size="2xs" variant={slamPlayhead === null ? "outline" : "solid"} onClick={playSlam}>
+              {slamPlayhead === null ? "▶ Play the slam" : "■ Stop"}
+            </Button>
+          </Flex>
+          <Lane title="Frame energy" caption={`slam peaks ${Math.round(Math.max(...burstRange.map((i) => analysis.energyDb[i])) - analysis.floorDb)} dB above the room`}>
+            <EnergyTrace
+              energyDb={analysis.energyDb.slice(closeFrom, closeTo)}
+              floorDb={analysis.floorDb}
+              margin={margin}
+            />
+          </Lane>
+          <Lane title="Energy detector" caption={`fires on ${energyOnBurst}/${burstRange.length} slam frames`}>
+            <Decisions
+              decisions={energy.slice(closeFrom, closeTo)}
+              slot={0}
+              burstAt={((burstFrame - closeFrom) * FRAME) / SAMPLE_RATE}
+              seconds={((closeTo - closeFrom) * FRAME) / SAMPLE_RATE}
+              playhead={slamPlayhead}
+            />
+          </Lane>
+          <Lane
+            title="Silero (neural)"
+            caption={
+              neural ? `fires on ${neuralOnBurst}/${burstRange.length} slam frames` : "model not loaded"
+            }
+          >
+            {neural ? (
+              <Decisions
+                decisions={neural.slice(closeFrom, closeTo)}
+                slot={1}
+                burstAt={((burstFrame - closeFrom) * FRAME) / SAMPLE_RATE}
+                seconds={((closeTo - closeFrom) * FRAME) / SAMPLE_RATE}
+                playhead={slamPlayhead}
+              />
+            ) : (
+              <Box h="5" rounded="l1" bg="bg.subtle" />
+            )}
+          </Lane>
+        </Box>
+      )}
+
       {/* Controls */}
       <Box
         mt="6"
@@ -458,16 +700,18 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
         gap="4"
         gridTemplateColumns={{ base: "1fr", sm: "repeat(2, 1fr)" }}
       >
-        <Knob
-          label="Energy margin above the floor"
-          value={margin}
-          unit="dB"
-          min={3}
-          max={30}
-          step={1}
-          onChange={setMargin}
-          hint="Raise it to stop reacting to the room; raise it too far and quiet speech disappears."
-        />
+        <Box data-tour="margin">
+          <Knob
+            label="Energy margin above the floor"
+            value={margin}
+            unit="dB"
+            min={3}
+            max={30}
+            step={1}
+            onChange={setMargin}
+            hint="Raise it to stop reacting to the room; raise it too far and quiet speech disappears."
+          />
+        </Box>
         <Knob
           label="Silero threshold"
           value={threshold}
@@ -485,6 +729,16 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
         Silero VAD is MIT licensed and its weights are served from this site
         rather than a third-party CDN. The audio never leaves the page.
       </Text>
+
+      {tourIndex !== null && (
+        <Tour
+          steps={steps}
+          index={tourIndex}
+          onIndex={setTourIndex}
+          onClose={closeTour}
+          root={root.current}
+        />
+      )}
     </Box>
   );
 }
@@ -635,6 +889,10 @@ function EnergyTrace({
         insetStart="0"
         insetEnd="0"
         bottom={`${height(floorDb + margin) * 100}%`}
+        // Slides as the margin moves, so turning the knob visibly raises the
+        // bar that loudness has to clear.
+        transition="bottom 200ms ease"
+        _motionReduce={{ transition: "none" }}
         borderTopWidth="1px"
         borderStyle="dashed"
         borderColor={seriesVar(0)}
