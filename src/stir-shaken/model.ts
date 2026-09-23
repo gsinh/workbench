@@ -45,6 +45,31 @@ function b64uToText(input: string): string {
   return new TextDecoder().decode(b64uToBytes(input));
 }
 
+function textToB64u(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * What someone in the middle of the network can do to a signed call: edit a
+ * claim in the payload, byte for byte where it sits, and pass the rest along
+ * untouched — header, signature and Identity parameters included. What they
+ * cannot do is re-sign it, which is the whole point.
+ *
+ * Returns null if `from` does not appear in the payload.
+ */
+export function tamperPayload(identity: string, from: string, to: string): string | null {
+  const [token, ...params] = identity.split(";");
+  const [header, payload, signature] = token.trim().split(".");
+  if (!header || !payload || !signature) return null;
+  const text = b64uToText(payload);
+  if (!text.includes(from)) return null;
+  const forged = textToB64u(text.replace(from, to));
+  return [`${header}.${forged}.${signature}`, ...params].join(";");
+}
+
 /** base64url proper: no padding, and none of +, / or whitespace. */
 const B64U = /^[A-Za-z0-9_-]+$/;
 
@@ -414,7 +439,7 @@ function timeCheck(p: Parsed, now: number): Check {
   };
 }
 
-function formatAge(seconds: number): string {
+export function formatAge(seconds: number): string {
   const s = Math.abs(seconds);
   if (s < 90) return `${s}s`;
   if (s < 5400) return `${Math.round(s / 60)} min`;

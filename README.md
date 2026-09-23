@@ -158,11 +158,22 @@ headers; and the saved samples are always stale against the 60-second
 freshness window, which is itself the point — an old `iat` is what a replayed
 token looks like.
 
+**Send a call, and attack it.** An animated path — originating carrier, the
+network, terminating carrier — carries the token across and shows the
+receiving side's verdict, computed from the same checks as the rest of the
+page. "Change the caller's number in transit" edits one claim in the signed
+payload without re-signing (`tamperPayload` in `model.ts`), and the call is
+rejected on its signature alone. "Replay it later" checks a genuine token
+against the real clock instead of two seconds after signing, and it is caught
+only by its age. A seven-step guided tour walks through both, plus a
+gateway-attested call and a token with its claims out of order.
+
 | Module | What it is | Dependencies |
 | --- | --- | --- |
 | `model.ts` | Parsing and every specification rule | **none** |
 | `crypto.ts` | DER walking to SubjectPublicKeyInfo, WebCrypto verification | WebCrypto |
 | `fixtures.ts` | The certificate and the signed samples | **none** |
+| `CallPath.tsx` | The animated call path | React, Chakra |
 | `StirShaken.tsx` | The inspector UI | React, Chakra |
 
 `crypto.ts` has no ASN.1 dependency — reaching `SubjectPublicKeyInfo` inside an
