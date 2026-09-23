@@ -333,6 +333,11 @@ export default function StirShaken() {
               for web pages. That is a constraint of doing this in a tab, not a
               flaw in the token.
             </Text>
+            <Text fontSize="2xs" color="fg.muted" lineHeight="tall" mt="1.5">
+              This button is the only thing on the page that contacts another
+              server: it requests the <Code>x5u</Code> URL, and sends nothing
+              you have pasted.
+            </Text>
             <HStack mt="3" gap="2">
               <Button size="2xs" variant="outline" onClick={() => void tryFetch()} disabled={!x5u}>
                 Try it anyway
