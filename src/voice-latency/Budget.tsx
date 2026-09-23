@@ -1,7 +1,7 @@
 "use client";
 
 import { Box, Flex, HStack, Table, Text } from "@chakra-ui/react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   type Budget,
   type Stage,
@@ -213,6 +213,24 @@ export function BudgetChart({
 }) {
   const [hovered, setHovered] = useState<Hovered>(null);
 
+  // The tooltip's left edge in pixels, clamped so it stays inside the plot.
+  // Centring it on the segment with a transform is simpler, but the first
+  // and last segments then push half of it past the edge of the chart, where
+  // a host with overflow hidden cuts it off.
+  const plot = useRef<HTMLDivElement>(null);
+  const tip = useRef<HTMLDivElement>(null);
+  const [tipLeft, setTipLeft] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!hovered || !plot.current || !tip.current) {
+      setTipLeft(null);
+      return;
+    }
+    const width = plot.current.clientWidth;
+    const own = tip.current.offsetWidth;
+    const centre = (hovered.centre / 100) * width;
+    setTipLeft(Math.max(0, Math.min(width - own, centre - own / 2)));
+  }, [hovered]);
+
   return (
     // The right gutter holds the total labels, which the track would otherwise
     // clip at full width.
@@ -235,7 +253,7 @@ export function BudgetChart({
         ))}
       </Box>
 
-      <Box position="relative">
+      <Box position="relative" ref={plot}>
         {rows.map((row) => (
           <Box key={row.id} mb="3">
             <Text
@@ -256,14 +274,18 @@ export function BudgetChart({
           </Box>
         ))}
 
-        {/* Tooltip. Anchored to the hovered segment's centre; the same box is
-            shown on keyboard focus, so nothing is hover-only. */}
+        {/* Tooltip. Over the hovered segment's centre where it fits, pushed
+            inwards where it would not; the same box is shown on keyboard
+            focus, so nothing is hover-only. Hidden for the one frame before
+            it has been measured, so it never flashes at the wrong place. */}
         {hovered && (
           <Box
+            ref={tip}
             position="absolute"
             top="0"
-            insetStart={`${hovered.centre}%`}
-            transform="translate(-50%, -100%)"
+            left={tipLeft === null ? "0" : `${tipLeft}px`}
+            visibility={tipLeft === null ? "hidden" : "visible"}
+            transform="translateY(-100%)"
             pointerEvents="none"
             zIndex="1"
             bg="bg"
