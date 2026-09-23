@@ -12,7 +12,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FRAME, SAMPLE_RATE, SileroVad } from "./silero";
 import { energyVad, frameEnergyDb, noiseFloorDb } from "./energy";
-import { injectBurst, loadAudioFromFile, loadAudioFromUrl } from "./audio";
+import { injectBurst, loadAudioFromFile, loadAudioFromUrl, playSignal } from "./audio";
 import { seriesVar, vizVars } from "../shared/palette";
 
 /**
@@ -59,6 +59,10 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
 
+  // Seconds elapsed while playing, or null when stopped. Drives the playhead.
+  const [playhead, setPlayhead] = useState<number | null>(null);
+  const stopPlayback = useRef<(() => void) | null>(null);
+
   const model = useRef<SileroVad | null>(null);
   const capture = useRef<{ ctx: AudioContext; stream: MediaStream; chunks: Float32Array[] } | null>(
     null,
@@ -74,6 +78,9 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
 
   const analyse = useCallback(
     async (label: string, signal: Float32Array, burstAt: number | null = null) => {
+      stopPlayback.current?.();
+      stopPlayback.current = null;
+      setPlayhead(null);
       setBusy(true);
       const energyDb = frameEnergyDb(signal);
       const { probs, inferenceMs } = await runModel(signal);
@@ -188,9 +195,23 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
         held.stream.getTracks().forEach((t) => t.stop());
         void held.ctx.close();
       }
+      stopPlayback.current?.();
     },
     [],
   );
+
+  const togglePlayback = useCallback(() => {
+    if (stopPlayback.current) {
+      stopPlayback.current();
+      stopPlayback.current = null;
+      return;
+    }
+    if (!analysis) return;
+    stopPlayback.current = playSignal(analysis.signal, SAMPLE_RATE, (seconds) => {
+      setPlayhead(seconds);
+      if (seconds === null) stopPlayback.current = null;
+    });
+  }, [analysis]);
 
   async function loadFile(file: File) {
     setNote(null);
@@ -314,6 +335,14 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
             />
           </label>
         </Button>
+        <Button
+          size="2xs"
+          variant={playhead === null ? "outline" : "solid"}
+          onClick={togglePlayback}
+          disabled={!analysis}
+        >
+          {playhead === null ? "Play" : "Stop"}
+        </Button>
         {analysis && (
           <Text fontSize="2xs" color="fg.muted">
             {analysis.label}
@@ -337,7 +366,13 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
           </Lane>
 
           <Lane title="Energy detector" caption={`${energy.filter(Boolean).length}/${frames} frames`}>
-            <Decisions decisions={energy} slot={0} burstAt={analysis.burstAt} seconds={seconds} />
+            <Decisions
+              decisions={energy}
+              slot={0}
+              burstAt={analysis.burstAt}
+              seconds={seconds}
+              playhead={playhead}
+            />
           </Lane>
 
           <Lane
@@ -347,7 +382,13 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
             }
           >
             {neural ? (
-              <Decisions decisions={neural} slot={1} burstAt={analysis.burstAt} seconds={seconds} />
+              <Decisions
+                decisions={neural}
+                slot={1}
+                burstAt={analysis.burstAt}
+                seconds={seconds}
+                playhead={playhead}
+              />
             ) : (
               <Box h="5" rounded="l1" bg="bg.subtle" />
             )}
@@ -360,6 +401,7 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
                 slot={6}
                 burstAt={analysis.burstAt}
                 seconds={seconds}
+                playhead={playhead}
               />
             </Lane>
           )}
@@ -452,11 +494,14 @@ function Decisions({
   slot,
   burstAt,
   seconds,
+  playhead,
 }: {
   decisions: boolean[];
   slot: number;
   burstAt: number | null;
   seconds: number;
+  /** Seconds elapsed while playing, or null when stopped. */
+  playhead?: number | null;
 }) {
   return (
     <Box position="relative" h="5" bg="bg.subtle" rounded="l1" overflow="hidden">
@@ -485,6 +530,20 @@ function Decisions({
           borderColor="fg"
           opacity="0.65"
           title="Injected noise burst"
+        />
+      )}
+      {/* Playhead. The point of the whole control: hearing the audio and
+          watching which detector is firing at that instant are the only way
+          to judge which of them is right. */}
+      {playhead != null && seconds > 0 && (
+        <Box
+          position="absolute"
+          top="0"
+          bottom="0"
+          insetStart={`${Math.min(100, (playhead / seconds) * 100)}%`}
+          w="2px"
+          bg="fg"
+          opacity="0.8"
         />
       )}
     </Box>

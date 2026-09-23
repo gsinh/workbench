@@ -81,3 +81,60 @@ export function injectBurst(
   }
   return { signal: out, atSeconds: at / SAMPLE_RATE };
 }
+
+/**
+ * Play a signal back, reporting progress.
+ *
+ * The demo shows two detectors disagreeing about audio; without this there is
+ * no way to judge which of them is right, or to hear the burst the buttons
+ * talk about. `onProgress` drives the playhead, so what you hear and what the
+ * lanes claim line up.
+ *
+ * Returns a stop function. Calling it, or reaching the end, releases the
+ * context — a page that leaves AudioContexts open eventually stops being
+ * allowed to make them.
+ */
+export function playSignal(
+  signal: Float32Array,
+  sampleRate: number,
+  onProgress: (seconds: number | null) => void,
+): () => void {
+  const ctx = new AudioContext();
+  const buffer = ctx.createBuffer(1, signal.length, sampleRate);
+  // Copy into the channel directly rather than via copyToChannel, whose typing
+  // rejects a Float32Array that might be backed by a SharedArrayBuffer.
+  buffer.getChannelData(0).set(signal);
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(ctx.destination);
+
+  let frame = 0;
+  let stopped = false;
+
+  const finish = () => {
+    if (stopped) return;
+    stopped = true;
+    cancelAnimationFrame(frame);
+    try {
+      source.stop();
+    } catch {
+      // Already ended; stop() on a finished source throws.
+    }
+    void ctx.close();
+    onProgress(null);
+  };
+
+  source.onended = finish;
+
+  const startedAt = ctx.currentTime;
+  const tick = () => {
+    if (stopped) return;
+    onProgress(ctx.currentTime - startedAt);
+    frame = requestAnimationFrame(tick);
+  };
+
+  source.start();
+  frame = requestAnimationFrame(tick);
+  return finish;
+}

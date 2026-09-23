@@ -208,6 +208,12 @@ into fragments** where the model holds it whole. That fragmenting is precisely
 why a naive endpointer needs a long silence window: it is guarding against its
 own dropouts between syllables.
 
+**You can hear it.** A play control sweeps a playhead across the lanes, so
+what you hear and what each detector claims line up. Without that the page
+shows you two rows of coloured blocks about audio you cannot listen to, and no
+way to judge which detector is right — which is how it shipped first, and was
+wrong.
+
 **What it costs, plainly.** The model is 2.3 MB. The runtime that executes it
 is 13.6 MB of WebAssembly, about 3.7 MB compressed — so the honest figure is
 roughly 6 MB over the wire, not the flattering 2.3. That gap is worth noticing
