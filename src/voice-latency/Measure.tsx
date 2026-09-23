@@ -134,15 +134,22 @@ export function Measure({
       setMicPhase("unsupported");
       return;
     }
+    // Created before the permission prompt, inside the click: after the
+    // prompt the gesture is spent, and Safari would hand back a suspended
+    // context whose analyser reads nothing but zeros.
+    const ctx = new (window.AudioContext ?? window.webkitAudioContext)();
+    void ctx.resume();
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
+      void ctx.close();
       setMicPhase("denied");
       return;
     }
+    // Bounded, because a resume the browser will not grant never settles.
+    await Promise.race([ctx.resume(), new Promise((r) => setTimeout(r, 1000))]);
 
-    const ctx = new (window.AudioContext ?? window.webkitAudioContext)();
     const source = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 1024;

@@ -226,7 +226,7 @@ CDN at runtime. Audio never leaves the page.
 | --- | --- | --- |
 | `energy.ts` | Frame energy, noise floor, threshold detector | **none** |
 | `silero.ts` | The ONNX model, loaded on demand | onnxruntime-web |
-| `audio.ts` | Decoding, resampling, the noise-burst injector | Web Audio |
+| `audio.ts` | Decoding and the noise-burst injector | Web Audio |
 | `VadCompare.tsx` | Lanes, controls, microphone and file input | React, Chakra |
 
 Two things that will cost you an afternoon if you implement this yourself:
@@ -238,6 +238,28 @@ runs, throws nothing, and reports about 0.001 for every frame of clean speech.
 **Import `onnxruntime-web/wasm`, not `onnxruntime-web`.** The default entry
 pulls the JSEP build with WebGPU and WebNN support — 27 MB against 13.6 MB,
 for capability a WASM-only session never uses.
+
+### Shared: `src/shared/audio.ts`
+
+Microphone capture and playback for all three audio experiments, written for
+the browsers people actually use rather than the one a headless test uses. The
+first version recorded nothing for a real reader while working in every automated
+check. Three rules, each learned from that:
+
+- **Create the AudioContext inside the click, before `await getUserMedia()`.**
+  The permission prompt spends the user gesture; a context created after it
+  can come back suspended, the graph never pulls, and the recording is empty
+  without a single error. `startMicCapture` is synchronous for this reason.
+- **Do not force a 16 kHz context onto a microphone.** Firefox refuses to
+  connect a stream to a context at a different rate from the device. Capture
+  at the device rate; resample afterwards.
+- **Play through an `<audio>` element, not Web Audio.** On iOS the ring/silent
+  switch mutes Web Audio but not media elements, so a Web Audio "Play" button
+  is silent on a large share of phones.
+
+Capture also turns off the browser's noise suppression, echo cancellation and
+gain control. They exist to remove exactly the knocks and loudness
+differences these experiments are about.
 
 ```tsx
 import { VadCompare } from "@gsinh/workbench/vad";

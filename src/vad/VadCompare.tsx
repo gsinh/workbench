@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FRAME, SAMPLE_RATE, SileroVad } from "./silero";
 import { energyVad, frameEnergyDb, noiseFloorDb } from "./energy";
 import { injectBurst, loadAudioFromFile, loadAudioFromUrl, playSignal } from "./audio";
+import { type MicCapture, isSilent, startMicCapture } from "../shared/audio";
 import { seriesVar, vizVars } from "../shared/palette";
 
 /**
@@ -57,16 +58,15 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
   const [modelState, setModelState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [recording, setRecording] = useState(false);
+  // Seconds captured and input level while recording, or null when not.
+  const [recording, setRecording] = useState<{ seconds: number; rms: number } | null>(null);
 
   // Seconds elapsed while playing, or null when stopped. Drives the playhead.
   const [playhead, setPlayhead] = useState<number | null>(null);
   const stopPlayback = useRef<(() => void) | null>(null);
 
   const model = useRef<SileroVad | null>(null);
-  const capture = useRef<{ ctx: AudioContext; stream: MediaStream; chunks: Float32Array[] } | null>(
-    null,
-  );
+  const capture = useRef<MicCapture | null>(null);
 
   /** Run the model over a signal, if it is loaded. */
   const runModel = useCallback(async (signal: Float32Array) => {
@@ -138,63 +138,56 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
   const stopRecording = useCallback(async () => {
     const held = capture.current;
     if (!held) return;
-    held.stream.getTracks().forEach((t) => t.stop());
-    await held.ctx.close();
     capture.current = null;
-    setRecording(false);
-
-    const total = held.chunks.reduce((n, c) => n + c.length, 0);
-    if (total < FRAME) return;
-    const joined = new Float32Array(total);
-    let at = 0;
-    for (const chunk of held.chunks) {
-      joined.set(chunk, at);
-      at += chunk.length;
+    setRecording(null);
+    const signal = await held.stop();
+    if (signal.length < FRAME) {
+      setNote(
+        "Nothing came through from the microphone. Check which input the browser is using, then try again.",
+      );
+      return;
     }
-    await analyse("Your microphone", joined);
+    setNote(
+      isSilent(signal)
+        ? "The microphone delivered only silence — it may be muted, or the wrong input is selected."
+        : null,
+    );
+    await analyse("Your recording", signal);
   }, [analyse]);
 
-  const startRecording = useCallback(async () => {
+  // Not async until after startMicCapture: the audio context has to be created
+  // inside the click, before anything is awaited.
+  const toggleRecording = useCallback(() => {
     if (capture.current) {
       void stopRecording();
       return;
     }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setNote("This browser has no microphone API.");
-      return;
-    }
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      setNote("Microphone access was declined. The sample clip needs no permission.");
-      return;
-    }
-    const ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
-    const node = ctx.createMediaStreamSource(stream);
-    const processor = ctx.createScriptProcessor(4096, 1, 1);
-    const chunks: Float32Array[] = [];
-    processor.onaudioprocess = (event) => {
-      chunks.push(Float32Array.from(event.inputBuffer.getChannelData(0)));
-    };
-    node.connect(processor);
-    const mute = ctx.createGain();
-    mute.gain.value = 0;
-    processor.connect(mute);
-    mute.connect(ctx.destination);
-
-    capture.current = { ctx, stream, chunks };
-    setRecording(true);
-    setNote("Recording. Say something, then knock on the desk, then stop.");
+    stopPlayback.current?.();
+    stopPlayback.current = null;
+    const held = startMicCapture(SAMPLE_RATE, (seconds, rms) => {
+      if (capture.current === held) setRecording({ seconds, rms });
+    });
+    capture.current = held;
+    setRecording({ seconds: 0, rms: 0 });
+    setNote("Waiting for the microphone…");
+    held.ready.then(
+      () => {
+        if (capture.current === held) {
+          setNote("Recording. Say something, knock on the desk, then press Stop.");
+        }
+      },
+      (error: Error) => {
+        if (capture.current !== held) return;
+        capture.current = null;
+        setRecording(null);
+        setNote(`${error.message} The sample clip needs no permission.`);
+      },
+    );
   }, [stopRecording]);
 
   useEffect(
     () => () => {
-      const held = capture.current;
-      if (held) {
-        held.stream.getTracks().forEach((t) => t.stop());
-        void held.ctx.close();
-      }
+      capture.current?.cancel();
       stopPlayback.current?.();
     },
     [],
@@ -207,10 +200,16 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
       return;
     }
     if (!analysis) return;
-    stopPlayback.current = playSignal(analysis.signal, SAMPLE_RATE, (seconds) => {
-      setPlayhead(seconds);
-      if (seconds === null) stopPlayback.current = null;
-    });
+    setNote(null);
+    stopPlayback.current = playSignal(
+      analysis.signal,
+      SAMPLE_RATE,
+      (seconds) => {
+        setPlayhead(seconds);
+        if (seconds === null) stopPlayback.current = null;
+      },
+      setNote,
+    );
   }, [analysis]);
 
   async function loadFile(file: File) {
@@ -272,6 +271,10 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
         <Text fontSize="2xs" color="fg.muted" mt="2" lineHeight="tall">
           Press{" "}
           <Text as="span" color="fg">
+            Listen
+          </Text>{" "}
+          to hear the clip while a playhead runs across the lanes. Then press{" "}
+          <Text as="span" color="fg">
             Add a noise burst
           </Text>{" "}
           to drop a door-slam into the quietest part of the clip. Energy has no
@@ -308,8 +311,14 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
 
       {/* Inputs */}
       <Wrap gap="2" mt="5" align="center">
-        <Button size="2xs" variant="outline" onClick={() => void loadSample()} loading={busy}>
-          Sample clip
+        <Button
+          size="2xs"
+          variant="solid"
+          onClick={togglePlayback}
+          disabled={!analysis || recording !== null}
+          minW="20"
+        >
+          {playhead === null ? "▶ Listen" : "■ Stop"}
         </Button>
         <Button size="2xs" variant="outline" onClick={() => void addBurst()} disabled={!analysis}>
           Add a noise burst
@@ -317,9 +326,10 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
         <Button
           size="2xs"
           variant={recording ? "solid" : "outline"}
-          onClick={() => void startRecording()}
+          colorPalette={recording ? "red" : undefined}
+          onClick={toggleRecording}
         >
-          {recording ? "Stop and analyse" : "Record"}
+          {recording ? `■ Stop and analyse · ${recording.seconds.toFixed(1)}s` : "● Record"}
         </Button>
         <Button size="2xs" variant="outline" asChild>
           <label>
@@ -330,25 +340,40 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
               hidden
               onChange={(event) => {
                 const file = event.target.files?.[0];
+                // Cleared so choosing the same file again still fires.
+                event.target.value = "";
                 if (file) void loadFile(file);
               }}
             />
           </label>
         </Button>
-        <Button
-          size="2xs"
-          variant={playhead === null ? "outline" : "solid"}
-          onClick={togglePlayback}
-          disabled={!analysis}
-        >
-          {playhead === null ? "Play" : "Stop"}
+        <Button size="2xs" variant="ghost" onClick={() => void loadSample()} loading={busy}>
+          Reset to sample
         </Button>
-        {analysis && (
-          <Text fontSize="2xs" color="fg.muted">
-            {analysis.label}
-          </Text>
-        )}
       </Wrap>
+      <Flex mt="2" gap="2" align="center" minH="4">
+        {recording ? (
+          <>
+            <Box w="24" h="1.5" rounded="full" bg="bg.subtle" overflow="hidden" flexShrink="0">
+              <Box
+                h="full"
+                bg="red.solid"
+                width={`${Math.min(100, Math.max(0, (20 * Math.log10(recording.rms + 1e-9) + 60) / 50) * 100)}%`}
+                transition="width 80ms linear"
+              />
+            </Box>
+            <Text fontSize="2xs" color="fg.muted">
+              input level
+            </Text>
+          </>
+        ) : (
+          analysis && (
+            <Text fontSize="2xs" color="fg.muted">
+              Now showing: {analysis.label} · {seconds.toFixed(1)}s
+            </Text>
+          )
+        )}
+      </Flex>
       {note && (
         <Text fontSize="2xs" color="fg.muted" mt="2">
           {note}

@@ -19,6 +19,7 @@ import {
   project,
 } from "./cluster";
 import { type Turn, scoreAgainstTruth, syntheticConversation } from "./synth";
+import { type MicCapture, isSilent, resample, startMicCapture } from "../shared/audio";
 import { seriesVar, vizVars } from "../shared/palette";
 
 /** Analysis rate. Speech features are conventionally computed at 16 kHz. */
@@ -28,21 +29,6 @@ const MAX_SPEAKERS = 3;
 
 const speakerName = (i: number) => `Speaker ${i + 1}`;
 
-/** Average an arbitrary-rate buffer down to the analysis rate. */
-function resample(input: Float32Array, from: number, to: number): Float32Array {
-  if (from === to) return input;
-  const ratio = from / to;
-  const out = new Float32Array(Math.floor(input.length / ratio));
-  for (let i = 0; i < out.length; i += 1) {
-    const start = Math.floor(i * ratio);
-    const end = Math.min(input.length, Math.floor((i + 1) * ratio));
-    let sum = 0;
-    for (let k = start; k < end; k += 1) sum += input[k];
-    out[i] = sum / Math.max(1, end - start);
-  }
-  return out;
-}
-
 type Source = { label: string; signal: Float32Array; truth?: Turn[] };
 
 export default function Diarize() {
@@ -51,12 +37,11 @@ export default function Diarize() {
   const [result, setResult] = useState<Diarization | null>(null);
   const [points, setPoints] = useState<{ x: number; y: number }[]>([]);
   const [busy, setBusy] = useState(false);
-  const [recording, setRecording] = useState(false);
+  // Seconds captured while recording, or null when not.
+  const [recording, setRecording] = useState<number | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
-  const capture = useRef<{ ctx: AudioContext; stream: MediaStream; chunks: Float32Array[] } | null>(
-    null,
-  );
+  const capture = useRef<MicCapture | null>(null);
 
   const run = useCallback((next: Source, opts: DiarizeOptions) => {
     setBusy(true);
@@ -89,71 +74,57 @@ export default function Diarize() {
   const stopRecording = useCallback(async () => {
     const held = capture.current;
     if (!held) return;
-    held.stream.getTracks().forEach((t) => t.stop());
-    await held.ctx.close();
     capture.current = null;
-    setRecording(false);
-
-    const total = held.chunks.reduce((n, c) => n + c.length, 0);
-    if (total === 0) return;
-    const joined = new Float32Array(total);
-    let at = 0;
-    for (const chunk of held.chunks) {
-      joined.set(chunk, at);
-      at += chunk.length;
+    setRecording(null);
+    const signal = await held.stop();
+    if (signal.length === 0) {
+      setNote(
+        "Nothing came through from the microphone. Check which input the browser is using, then try again.",
+      );
+      return;
     }
-    const next: Source = { label: "Your microphone", signal: joined };
+    setNote(
+      isSilent(signal)
+        ? "The microphone delivered only silence — it may be muted, or the wrong input is selected."
+        : null,
+    );
+    const next: Source = { label: "Your recording", signal };
     setSource(next);
     run(next, options);
   }, [options, run]);
 
-  const startRecording = useCallback(async () => {
+  // Not async until after startMicCapture: the audio context has to be created
+  // inside the click, before anything is awaited.
+  const toggleRecording = useCallback(() => {
     if (capture.current) {
       void stopRecording();
       return;
     }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setNote("This browser has no microphone API.");
-      return;
-    }
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      setNote("Microphone access was declined. The synthetic sample needs no permission.");
-      return;
-    }
-    const ctx = new AudioContext({ sampleRate: RATE });
-    const sourceNode = ctx.createMediaStreamSource(stream);
-    // ScriptProcessor rather than an AudioWorklet: a worklet needs a separate
-    // module URL, which a source-only package cannot ship without forcing a
-    // bundler configuration on whoever installs it.
-    const processor = ctx.createScriptProcessor(4096, 1, 1);
-    const chunks: Float32Array[] = [];
-    processor.onaudioprocess = (event) => {
-      chunks.push(Float32Array.from(event.inputBuffer.getChannelData(0)));
-    };
-    sourceNode.connect(processor);
-    // Routed to a silent gain node: without a path to the destination the
-    // graph does not pull, but connecting it directly would echo the room.
-    const mute = ctx.createGain();
-    mute.gain.value = 0;
-    processor.connect(mute);
-    mute.connect(ctx.destination);
-
-    capture.current = { ctx, stream, chunks };
-    setRecording(true);
-    setNote("Recording. Have two people speak in turn, then stop.");
+    const held = startMicCapture(RATE, (seconds) => {
+      if (capture.current === held) setRecording(seconds);
+    });
+    capture.current = held;
+    setRecording(0);
+    setNote("Waiting for the microphone…");
+    held.ready.then(
+      () => {
+        if (capture.current === held) {
+          setNote("Recording. Have two people speak in turn, then press Stop.");
+        }
+      },
+      (error: Error) => {
+        if (capture.current !== held) return;
+        capture.current = null;
+        setRecording(null);
+        setNote(`${error.message} The synthetic sample needs no permission.`);
+      },
+    );
   }, [stopRecording]);
 
   useEffect(() => {
     return () => {
-      const held = capture.current;
-      if (held) {
-        held.stream.getTracks().forEach((t) => t.stop());
-        void held.ctx.close();
-        capture.current = null;
-      }
+      capture.current?.cancel();
+      capture.current = null;
     };
   }, []);
 
@@ -236,10 +207,13 @@ export default function Diarize() {
         </Button>
         <Button
           size="2xs"
-          variant={recording ? "solid" : "outline"}
-          onClick={() => void startRecording()}
+          variant={recording !== null ? "solid" : "outline"}
+          colorPalette={recording !== null ? "red" : undefined}
+          onClick={toggleRecording}
         >
-          {recording ? "Stop and analyse" : "Record two voices"}
+          {recording !== null
+            ? `■ Stop and analyse · ${recording.toFixed(1)}s`
+            : "● Record two voices"}
         </Button>
         {/* The label is the button: clicking it opens the picker, so no
             click handler has to reach for a hidden input by ref. */}
