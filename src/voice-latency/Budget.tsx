@@ -142,7 +142,11 @@ function Bar({
             width={`max(1px, calc(${share * 100}% - 2px))`}
             bg={s.colour}
             opacity={hovered && !active ? 0.55 : 1}
-            transition="opacity 120ms ease"
+            // Segments slide to their new size rather than jumping, so a
+            // change reads as cause and effect: drag a slider, watch the
+            // stage it controls grow and everything after it move.
+            transition="opacity 120ms ease, width 200ms ease, inset-inline-start 200ms ease"
+            _motionReduce={{ transition: "opacity 120ms ease" }}
             borderEndRadius={isLast ? "4px" : "0"}
             cursor="default"
             _focusVisible={{
@@ -188,6 +192,8 @@ function Bar({
       <Text
         position="absolute"
         insetStart={`calc(${(sum / max) * 100}% + 8px)`}
+        transition="inset-inline-start 200ms ease"
+        _motionReduce={{ transition: "none" }}
         top="0"
         lineHeight={BAR_H}
         fontSize="2xs"

@@ -253,3 +253,26 @@ export function playSignal(
   );
   return finish;
 }
+
+/**
+ * Fetch and decode an audio file to mono at `rate`.
+ *
+ * Decoding needs an AudioContext but not a user gesture, so this is safe to
+ * call on mount to have clips ready before anyone presses Play — which matters,
+ * because a play() that waits on a fetch has usually lost its gesture by the
+ * time it runs.
+ */
+export async function loadAudio(url: string, rate: number): Promise<Float32Array> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not fetch ${url}: ${response.status}`);
+  const bytes = await response.arrayBuffer();
+  const Ctor = audioContextCtor();
+  if (!Ctor) throw new Error("This browser has no Web Audio API.");
+  const ctx = new Ctor();
+  try {
+    const buffer = await ctx.decodeAudioData(bytes);
+    return resample(Float32Array.from(buffer.getChannelData(0)), buffer.sampleRate, rate);
+  } finally {
+    void ctx.close();
+  }
+}

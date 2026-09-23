@@ -71,7 +71,7 @@ function App() {
           model thinking.
         </Text>
 
-        <VoiceLatency />
+        <VoiceLatency clipsUrl="/voice-latency/" />
 
         <Box mt="16" pt="10" borderTopWidth="1px" borderColor="border">
           <Heading as="h1" size="lg">

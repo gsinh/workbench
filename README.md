@@ -86,9 +86,29 @@ opposite direction.
 **Three of the seven stages are measured, not estimated**: the audio stack's
 capture and sink latency from `AudioContext`, this browser's TTS
 time-to-first-audio from `speechSynthesis`, and a live energy VAD running the
-endpointing setting against the real microphone. Audio never leaves the page
-and nothing is downloaded. The other four stages need infrastructure a static
-page cannot reach, and are sliders with documented defaults.
+endpointing setting against the real microphone. Audio never leaves the page.
+The other four stages need infrastructure a static page cannot reach, and are
+sliders with documented defaults.
+
+**You can hear it.** Pass `clipsUrl` and a call player appears: a caller, the
+silence your budget adds up to, then the agent, on a two-lane timeline with a
+cursor that follows the audio. A second scenario has the caller pause
+mid-number, so a short endpoint audibly cuts them off. The six clips (400 KB,
+in `assets/`, generated with the Apache-2.0 Kokoro model — see `assets/NOTICE`)
+are fetched when the player scrolls into view, and mixed into one track so a
+single `<audio>` element plays it: exact timing, and no fight with iOS
+autoplay rules or its silent switch.
+
+**And be walked through it.** With the clips present, a "Take the 1-minute
+tour" button runs seven steps — hear the batch build, hear streaming, shorten
+endpointing, hear the cut-off, and so on. Each step highlights one control,
+has a "Show me" that performs it, and responds to what the reader actually
+did. `#tour-3` links open a step directly. The tour is generic
+(`src/shared/Tour.tsx`) and knows nothing about latency.
+
+```tsx
+<VoiceLatency clipsUrl="/voice-latency/" />  // serve src/voice-latency/assets there
+```
 
 | Module | What it is | Dependencies |
 | --- | --- | --- |
@@ -97,6 +117,8 @@ page cannot reach, and are sliders with documented defaults.
 | `Budget.tsx` | Stacked bars, gridlines, tooltip, legend, table view | React, Chakra |
 | `Controls.tsx` | `Knob` (labelled slider) and `Choice` (segmented control) | React, Chakra |
 | `Measure.tsx` | The device measurements and the live VAD | React, Chakra |
+| `call.ts` | The call as a timeline, and the mix of the clips into one track | **none** |
+| `CallPlayer.tsx` | The call player and its timeline | React, Chakra |
 
 `model.ts` is plain TypeScript with no React and no browser APIs. If you want
 one file out of this repo, it is that one:

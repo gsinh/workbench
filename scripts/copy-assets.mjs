@@ -1,5 +1,5 @@
 /**
- * Stage the data files the VAD experiment loads at runtime.
+ * Stage the data files the experiments load at runtime.
  *
  * Only the model and the sample clip: they are plain data that a static host
  * serves untouched, which is exactly what a host application does with them.
@@ -8,7 +8,7 @@
  * subpaths, so the harness resolves them through the bundler instead — see
  * dev/main.tsx.
  */
-import { cp, mkdir } from "node:fs/promises";
+import { cp, mkdir, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,4 +19,14 @@ await mkdir(target, { recursive: true });
 for (const file of ["silero_vad.onnx", "speech-sample.wav"]) {
   await cp(join(root, "src/vad/assets", file), join(target, file));
 }
-console.log("assets: 2 vad file(s) -> public/vad");
+
+// The latency budget's call player: six short voice clips.
+const voices = join(root, "public/voice-latency");
+const clips = (await readdir(join(root, "src/voice-latency/assets"))).filter((f) =>
+  f.endsWith(".wav"),
+);
+await mkdir(voices, { recursive: true });
+for (const file of clips) {
+  await cp(join(root, "src/voice-latency/assets", file), join(voices, file));
+}
+console.log(`assets: 2 vad file(s) -> public/vad, ${clips.length} clip(s) -> public/voice-latency`);

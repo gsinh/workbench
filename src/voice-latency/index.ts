@@ -6,8 +6,10 @@
  * plain TypeScript with no React and no browser APIs, so it can be lifted into
  * a test, a script or a different UI entirely.
  */
-export { default as VoiceLatency } from "./VoiceLatency";
+export { default as VoiceLatency, type VoiceLatencyProps } from "./VoiceLatency";
 export { BudgetChart, BudgetTable, Legend, type Row } from "./Budget";
+export * from "./call";
+export { CallPlayer, type CallPlayerHandle, type CallResult } from "./CallPlayer";
 export { Choice, Knob } from "./Controls";
 export { Measure } from "./Measure";
 export * from "./model";
