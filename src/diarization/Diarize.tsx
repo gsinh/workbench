@@ -14,12 +14,25 @@ import { DEFAULT_FRAMES, analyseFrames } from "./dsp";
 import {
   type Diarization,
   type DiarizeOptions,
+  type Merge,
   DEFAULT_OPTIONS,
   diarize,
+  groupsAfter,
   project,
 } from "./cluster";
 import { type Turn, scoreAgainstTruth, syntheticConversation } from "./synth";
-import { type MicCapture, isSilent, resample, startMicCapture } from "../shared/audio";
+import { type MicCapture, isSilent, playSignal, resample, startMicCapture } from "../shared/audio";
+import {
+  Tour,
+  TourButton,
+  type TourStep,
+  clearTourHash,
+  tourFromHash,
+  tourSpotlight,
+} from "../shared/Tour";
+
+/** How long each merge stays on screen when the clustering is replayed. */
+const MERGE_MS = 800;
 import { seriesVar, vizVars } from "../shared/palette";
 
 /** Analysis rate. Speech features are conventionally computed at 16 kHz. */
@@ -43,7 +56,35 @@ export default function Diarize() {
 
   const capture = useRef<MicCapture | null>(null);
 
+  // Playback, with a playhead on the timeline; dots appear as it passes them.
+  const [playhead, setPlayhead] = useState<number | null>(null);
+  const stopPlay = useRef<(() => void) | null>(null);
+
+  // The clustering replayed one merge at a time: the number of merges shown,
+  // or null for the finished result.
+  const [mergeStep, setMergeStep] = useState<number | null>(null);
+  const replayTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Guided tour: the step, and what the reader has done during each one.
+  const [tourIndex, setTourIndex] = useState<number | null>(null);
+  const tourRef = useRef<number | null>(null);
+  tourRef.current = tourIndex;
+  const [did, setDid] = useState<Record<string, boolean>>({});
+  const mark = (what: string) => {
+    const at = tourRef.current;
+    if (at !== null) setDid((prev) => ({ ...prev, [`${at}:${what}`]: true }));
+  };
+  const root = useRef<HTMLDivElement>(null);
+
+  const stopReplay = () => {
+    if (replayTimer.current) clearInterval(replayTimer.current);
+    replayTimer.current = null;
+    setMergeStep(null);
+  };
+
   const run = useCallback((next: Source, opts: DiarizeOptions) => {
+    stopReplay();
+    stopPlay.current?.();
     setBusy(true);
     // Yield a frame so the button state paints before the FFTs start.
     setTimeout(() => {
@@ -125,8 +166,55 @@ export default function Diarize() {
     return () => {
       capture.current?.cancel();
       capture.current = null;
+      stopPlay.current?.();
+      if (replayTimer.current) clearInterval(replayTimer.current);
     };
   }, []);
+
+  const togglePlay = () => {
+    if (stopPlay.current) {
+      stopPlay.current();
+      return;
+    }
+    if (!source) return;
+    stopPlay.current = playSignal(
+      source.signal,
+      RATE,
+      (seconds) => {
+        setPlayhead(seconds);
+        if (seconds === null) {
+          stopPlay.current = null;
+          mark("played");
+        }
+      },
+      setNote,
+    );
+  };
+
+  /** Replay the merges from every segment on its own to the final groups. */
+  const replayClustering = () => {
+    if (!result) return;
+    if (replayTimer.current) clearInterval(replayTimer.current);
+    const total = result.history.length;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || total === 0) {
+      setMergeStep(null);
+      mark("replayed");
+      return;
+    }
+    let step = 0;
+    setMergeStep(0);
+    replayTimer.current = setInterval(() => {
+      step += 1;
+      if (step > total) {
+        if (replayTimer.current) clearInterval(replayTimer.current);
+        replayTimer.current = null;
+        setMergeStep(null);
+        mark("replayed");
+      } else {
+        setMergeStep(step);
+      }
+    }, MERGE_MS);
+  };
 
   async function loadFile(file: File) {
     setNote(null);
@@ -155,11 +243,87 @@ export default function Diarize() {
 
   const score = source?.truth && result ? scoreAgainstTruth(source.truth, result.segments) : null;
   const totalSeconds = result?.totalSeconds ?? 0;
+  const replaying = mergeStep !== null;
+  const history = result?.history ?? [];
+  const groups =
+    replaying && result ? groupsAfter(result.segments.length, history, mergeStep) : null;
+  const groupCount = groups ? new Set(groups).size : 0;
+  const latest = replaying && mergeStep > 0 ? history[mergeStep - 1] : null;
+
+  const steps: TourStep[] = [
+    {
+      target: "verdict",
+      say: "This works out who spoke when, with no trained model: just the sound's spectrum and some arithmetic. The sample is a synthetic conversation with a known script, so the answer can be scored.",
+    },
+    {
+      target: "timeline",
+      say: "Play the conversation. Each stretch of speech becomes one dot below: a fingerprint of how that stretch sounds.",
+      showLabel: "Play it",
+      show: () => {
+        if (!stopPlay.current) togglePlay();
+      },
+      done: !!did["1:played"],
+      after: `${result?.segments.length ?? 0} stretches of speech, ${result?.segments.length ?? 0} dots. Dots close together sound alike; the two voices land in different corners.`,
+    },
+    {
+      target: "scatter",
+      say: "Now the grouping. It joins the two most alike groups, again and again, until two are left.",
+      showLabel: "Watch it",
+      show: replayClustering,
+      done: !!did["2:replayed"],
+      after: score
+        ? `${history.length} merges, and the two groups left are the two speakers: ${score.correct} of ${score.total} turns match the script.`
+        : `${history.length} merges, and the groups left are the speakers.`,
+    },
+    {
+      target: "speakers",
+      say: "Tell it there are three speakers instead of two.",
+      showLabel: "Set it to 3",
+      show: () => update({ speakers: 3 }),
+      done: options.speakers === 3 && !busy,
+      after: score
+        ? `It finds three, because it was asked for three: one real voice is split in two, and the score drops to ${score.correct} of ${score.total}. Clustering always returns as many groups as you ask for.`
+        : "It finds three, because it was asked for three. Clustering always returns as many groups as you ask for.",
+    },
+    {
+      target: "speakers",
+      say: "Or let it decide: Auto keeps merging until the closest pair is further apart than a threshold.",
+      showLabel: "Set it to Auto",
+      show: () => update({ speakers: "auto" }),
+      done: options.speakers === "auto" && !busy,
+      after: `Auto found ${result?.speakerCount ?? 0}. Telling it the count is the single biggest accuracy win, and usually you do know it.`,
+    },
+    {
+      target: "inputs",
+      say: "Try it on two real voices: record a short back-and-forth.",
+      showLabel: recording !== null ? "■ Stop and analyse" : "● Record",
+      show: toggleRecording,
+      done: source?.label === "Your recording" && !busy,
+      after: "Two speakers is the default; set Speakers to match whoever was talking. Everything here is yours to change.",
+    },
+  ];
+
+  const startTour = () => {
+    setDid({});
+    if (options.speakers !== 2) update({ speakers: 2 });
+    setTourIndex(0);
+  };
+  const closeTour = () => {
+    setTourIndex(null);
+    clearTourHash();
+  };
+  useEffect(() => {
+    const at = tourFromHash();
+    if (at !== null) setTourIndex(Math.max(0, Math.min(5, at)));
+  }, []);
 
   return (
-    <Box css={vizVars}>
+    <Box
+      ref={root}
+      css={{ ...vizVars, ...tourSpotlight(tourIndex !== null ? steps[tourIndex].target : null) }}
+    >
       {/* Verdict */}
-      <Flex align="baseline" gap="3" wrap="wrap">
+      <Flex align="baseline" gap="3" wrap="wrap" data-tour="verdict">
         <Text
           fontSize={{ base: "4xl", sm: "5xl" }}
           fontWeight="bold"
@@ -186,6 +350,11 @@ export default function Diarize() {
             {score.correct}/{score.total} turns match the known script
           </Badge>
         )}
+        {tourIndex === null && (
+          <Box ms={score ? undefined : "auto"}>
+            <TourButton id="diarization" onStart={startTour} />
+          </Box>
+        )}
       </Flex>
 
       <Box mt="5" ps="3" borderStartWidth="2px" borderColor="colorPalette.solid">
@@ -201,7 +370,7 @@ export default function Diarize() {
       </Box>
 
       {/* Inputs */}
-      <Wrap gap="2" mt="5" align="center">
+      <Wrap gap="2" mt="5" align="center" data-tour="inputs">
         <Button size="2xs" variant="outline" onClick={loadSynthetic} loading={busy}>
           Synthetic conversation
         </Button>
@@ -245,10 +414,15 @@ export default function Diarize() {
 
       {/* Timeline */}
       {result && result.segments.length > 0 && (
-        <Box mt="6">
-          <Text fontSize="2xs" color="fg.muted" mb="2">
-            Who spoke when
-          </Text>
+        <Box mt="6" data-tour="timeline">
+          <Flex justify="space-between" align="center" mb="2" gap="3">
+            <Text fontSize="2xs" color="fg.muted">
+              Who spoke when
+            </Text>
+            <Button size="2xs" variant={playhead === null ? "outline" : "solid"} onClick={togglePlay}>
+              {playhead === null ? "▶ Play" : "■ Stop"}
+            </Button>
+          </Flex>
           <Box position="relative" h="7" bg="bg.subtle" rounded="l2" overflow="hidden">
             {result.segments.map((segment) => (
               <Box
@@ -258,10 +432,25 @@ export default function Diarize() {
                 bottom="0"
                 insetStart={`${(segment.startSeconds / totalSeconds) * 100}%`}
                 width={`max(2px, calc(${((segment.endSeconds - segment.startSeconds) / totalSeconds) * 100}% - 2px))`}
-                bg={seriesVar(segment.speaker)}
+                // Grey while the clustering replays, filling with each
+                // speaker's colour once it has finished deciding.
+                bg={replaying ? "fg.muted" : seriesVar(segment.speaker)}
+                opacity={replaying ? 0.35 : 1}
+                transition="background 400ms ease, opacity 400ms ease"
+                _motionReduce={{ transition: "none" }}
                 title={`${speakerName(segment.speaker)} · ${segment.startSeconds.toFixed(1)}–${segment.endSeconds.toFixed(1)}s`}
               />
             ))}
+            {playhead !== null && totalSeconds > 0 && (
+              <Box
+                position="absolute"
+                top="0"
+                bottom="0"
+                insetStart={`${Math.min(100, (playhead / totalSeconds) * 100)}%`}
+                w="2px"
+                bg="fg"
+              />
+            )}
           </Box>
 
           {/* The known script, drawn underneath for comparison. */}
@@ -305,11 +494,34 @@ export default function Diarize() {
 
       {/* Embedding scatter */}
       {result && points.length > 1 && (
-        <Box mt="6">
-          <Text fontSize="2xs" color="fg.muted" mb="2">
-            Segment embeddings, projected to two dimensions
+        <Box mt="6" data-tour="scatter">
+          <Flex justify="space-between" align="center" mb="2" gap="3">
+            <Text fontSize="2xs" color="fg.muted">
+              Segment embeddings, projected to two dimensions
+            </Text>
+            <Button
+              size="2xs"
+              variant={replaying ? "solid" : "outline"}
+              onClick={replaying ? stopReplay : replayClustering}
+              disabled={history.length === 0}
+            >
+              {replaying ? "■ Stop" : "▶ Replay the grouping"}
+            </Button>
+          </Flex>
+          <Scatter
+            points={points}
+            speakers={result.segments.map((s) => s.speaker)}
+            visible={result.segments.map((s) => playhead === null || s.startSeconds <= playhead)}
+            history={history}
+            step={mergeStep}
+          />
+          <Text fontSize="2xs" mt="2" minH="4" aria-live="polite" color={replaying ? "fg" : "fg.muted"}>
+            {replaying
+              ? latest
+                ? `Merge ${mergeStep} of ${history.length}: joined the two most alike groups (${latest.distance < 0.005 ? "almost identical" : `${latest.distance.toFixed(2)} apart`}). ${groupCount} group${groupCount === 1 ? "" : "s"} left.`
+                : `${result.segments.length} segments, each its own group. Joining the closest pair…`
+              : ""}
           </Text>
-          <Scatter points={points} speakers={result.segments.map((s) => s.speaker)} />
           <Text fontSize="9px" color="fg.muted" mt="2" lineHeight="short">
             Each dot is one segment, placed by its two strongest principal
             components. Clear separation here is the clustering being easy;
@@ -328,7 +540,7 @@ export default function Diarize() {
         gap="4"
         gridTemplateColumns={{ base: "1fr", sm: "repeat(2, 1fr)" }}
       >
-        <Box>
+        <Box data-tour="speakers">
           <Text fontSize="2xs" color="fg.muted" mb="1.5">
             Speakers
           </Text>
@@ -387,17 +599,42 @@ export default function Diarize() {
         Audio never leaves the page — there is nowhere for it to go. Nothing is
         uploaded and no model is downloaded.
       </Text>
+
+      {tourIndex !== null && (
+        <Tour
+          steps={steps}
+          index={tourIndex}
+          onIndex={setTourIndex}
+          onClose={closeTour}
+          root={root.current}
+        />
+      )}
     </Box>
   );
 }
 
-/** Scatter of segment embeddings, coloured by cluster. */
+/**
+ * Scatter of segment embeddings, coloured by cluster.
+ *
+ * During a replay the dots stay neutral and each merge so far is drawn as a
+ * line between the two groups' centres, the newest one highlighted — the
+ * dendrogram, laid over the space it was built in. Colour arrives only with
+ * the final answer.
+ */
 function Scatter({
   points,
   speakers,
+  visible,
+  history,
+  step,
 }: {
   points: { x: number; y: number }[];
   speakers: number[];
+  /** Dots not yet reached by the playhead are faded out. */
+  visible: boolean[];
+  history: Merge[];
+  /** Merges shown so far, or null for the finished clustering. */
+  step: number | null;
 }) {
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
@@ -409,6 +646,24 @@ function Scatter({
   const width = spanX * (1 + pad * 2);
   const height = spanY * (1 + pad * 2);
 
+  // Positions in percent of the box, shared by the dots and the lines.
+  const at = points.map((p) => ({
+    x: ((p.x - minX) / width) * 100,
+    y: (1 - (p.y - minY) / height) * 100,
+  }));
+  const centre = (members: number[]) => ({
+    x: members.reduce((sum, i) => sum + at[i].x, 0) / members.length,
+    y: members.reduce((sum, i) => sum + at[i].y, 0) / members.length,
+  });
+  const lines =
+    step === null
+      ? []
+      : history.slice(0, step).map((merge, i) => ({
+          from: centre(merge.a),
+          to: centre(merge.b),
+          latest: i === step - 1,
+        }));
+
   return (
     <Box
       position="relative"
@@ -418,16 +673,43 @@ function Scatter({
       rounded="l2"
       bg="bg.subtle"
     >
-      {points.map((point, i) => (
+      <svg
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        aria-hidden
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}
+      >
+        {lines.map((line, i) => (
+          <line
+            key={i}
+            x1={line.from.x}
+            y1={line.from.y}
+            x2={line.to.x}
+            y2={line.to.y}
+            stroke={
+              line.latest
+                ? "var(--chakra-colors-color-palette-solid)"
+                : "var(--chakra-colors-fg-muted)"
+            }
+            strokeWidth={line.latest ? 2.5 : 1.5}
+            strokeOpacity={line.latest ? 1 : 0.5}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+      </svg>
+      {points.map((_, i) => (
         <Box
           key={i}
           position="absolute"
-          insetStart={`${((point.x - minX) / width) * 100}%`}
-          top={`${(1 - (point.y - minY) / height) * 100}%`}
-          transform="translate(-50%, -50%)"
+          insetStart={`${at[i].x}%`}
+          top={`${at[i].y}%`}
+          transform={`translate(-50%, -50%) scale(${visible[i] ? 1 : 0.5})`}
+          opacity={visible[i] ? 1 : 0.15}
+          transition="opacity 250ms ease, transform 250ms ease, background 400ms ease"
+          _motionReduce={{ transition: "none" }}
           boxSize="3"
           rounded="full"
-          bg={seriesVar(speakers[i] ?? 0)}
+          bg={step === null ? seriesVar(speakers[i] ?? 0) : "fg.muted"}
           // A ring in the surface colour keeps overlapping dots legible.
           outline="2px solid"
           outlineColor="bg.subtle"

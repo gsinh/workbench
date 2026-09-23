@@ -204,6 +204,16 @@ actually got right. Forcing the speaker count to three drops it from 5/5 to
 3/5, because the clustering splits a real speaker — the failure mode is on
 screen rather than in a footnote.
 
+**Watch it decide.** Play the conversation and a playhead crosses the
+timeline while each segment's dot appears in the scatter as it is reached.
+"Replay the grouping" then re-runs the agglomerative clustering one merge at a
+time — each merge drawn as a line between the two groups' centres, the
+timeline grey until the last merge colours it in. `cluster()` now returns the
+merge `history` and `groupsAfter()` reconstructs the groups at any step, so
+the replay shows what the algorithm actually did rather than an animation of
+it. A six-step guided tour ends with forcing three speakers, where one real
+voice splits in two and the score falls from 5/5 to 3/5.
+
 | Module | What it is | Dependencies |
 | --- | --- | --- |
 | `dsp.ts` | FFT, mel filterbank, MFCC, cepstral mean normalization, energy VAD | **none** |

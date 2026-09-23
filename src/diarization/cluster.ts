@@ -136,16 +136,20 @@ export function cosineDistance(a: Float32Array, b: Float32Array): number {
  * than single linkage, because single linkage chains — one ambiguous segment
  * between two voices drags both into one cluster.
  */
+/** One merge, in the order it happened: the members of the two groups joined. */
+export type Merge = { a: number[]; b: number[]; distance: number };
+
 export function cluster(
   embeddings: Float32Array[],
   options: DiarizeOptions,
-): { labels: number[]; merges: number[] } {
+): { labels: number[]; merges: number[]; history: Merge[] } {
   const n = embeddings.length;
-  if (n === 0) return { labels: [], merges: [] };
+  if (n === 0) return { labels: [], merges: [], history: [] };
 
   const members: number[][] = embeddings.map((_, i) => [i]);
   const alive = new Set(members.map((_, i) => i));
   const merges: number[] = [];
+  const history: Merge[] = [];
 
   const distance = (a: number[], b: number[]) => {
     let sum = 0;
@@ -173,6 +177,7 @@ export function cluster(
     if (options.speakers === "auto" && bestDistance > options.threshold) break;
     merges.push(bestDistance);
     const [keep, drop] = best;
+    history.push({ a: [...members[keep]], b: [...members[drop]], distance: bestDistance });
     members[keep] = [...members[keep], ...members[drop]];
     alive.delete(drop);
   }
@@ -184,7 +189,22 @@ export function cluster(
   ordered.forEach((id, index) => {
     for (const member of members[id]) labels[member] = index;
   });
-  return { labels, merges };
+  return { labels, merges, history };
+}
+
+/**
+ * Group membership after the first `step` merges, as a group index per
+ * segment. Groups are numbered by their lowest member, so the numbering is
+ * stable as the replay advances.
+ */
+export function groupsAfter(n: number, history: Merge[], step: number): number[] {
+  const parent = Array.from({ length: n }, (_, i) => i);
+  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+  for (const merge of history.slice(0, step)) {
+    const [ra, rb] = [find(merge.a[0]), find(merge.b[0])];
+    parent[Math.max(ra, rb)] = Math.min(ra, rb);
+  }
+  return Array.from({ length: n }, (_, i) => find(i));
 }
 
 /* ------------------------------------------------------------------ */
@@ -198,6 +218,8 @@ export type Diarization = {
   totalSeconds: number;
   /** Per-speaker talk time, in seconds. */
   talkTime: number[];
+  /** Every merge the clustering made, in order — for replaying it. */
+  history: Merge[];
 };
 
 export function diarize(
@@ -220,7 +242,7 @@ export function diarize(
     speaker: 0,
   }));
 
-  const { labels } = cluster(
+  const { labels, history } = cluster(
     segments.map((s) => s.embedding),
     options,
   );
@@ -240,6 +262,7 @@ export function diarize(
     speechSeconds: speech.filter(Boolean).length * frames.hopSeconds,
     totalSeconds,
     talkTime,
+    history,
   };
 }
 
