@@ -68,7 +68,7 @@ export type VoiceLatencyProps = {
  * builds on a shared axis, so the cost of each architectural choice is a
  * length rather than an assertion.
  */
-export default function VoiceLatency({ clipsUrl }: VoiceLatencyProps = {}) {
+export default function VoiceLatency({ clipsUrl }: VoiceLatencyProps) {
   const [params, setParams] = useState<Params>(DEFAULT_PARAMS);
   const [barge, setBarge] = useState<BargeParams>(DEFAULT_BARGE);
   // Collapsed on arrival: interruptions are a second question, and the page
