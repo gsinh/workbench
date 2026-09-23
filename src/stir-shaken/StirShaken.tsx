@@ -335,8 +335,8 @@ export default function StirShaken() {
             </Text>
             <Text fontSize="2xs" color="fg.muted" lineHeight="tall" mt="1.5">
               This button is the only thing on the page that contacts another
-              server: it requests the <Code>x5u</Code> URL, and sends nothing
-              you have pasted.
+              server. It requests the token&rsquo;s <Code>x5u</Code> URL;
+              nothing else you have pasted is sent.
             </Text>
             <HStack mt="3" gap="2">
               <Button size="2xs" variant="outline" onClick={() => void tryFetch()} disabled={!x5u}>
