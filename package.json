@@ -20,7 +20,8 @@
     "./voice-latency": "./src/voice-latency/index.ts",
     "./stir-shaken": "./src/stir-shaken/index.ts",
     "./diarization": "./src/diarization/index.ts",
-    "./vad": "./src/vad/index.ts"
+    "./vad": "./src/vad/index.ts",
+    "./system-one": "./src/system-one/index.ts"
   },
   "scripts": {
     "dev": "vite",

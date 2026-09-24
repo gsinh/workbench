@@ -29,4 +29,24 @@ await mkdir(voices, { recursive: true });
 for (const file of clips) {
   await cp(join(root, "src/voice-latency/assets", file), join(voices, file));
 }
-console.log(`assets: 2 vad file(s) -> public/vad, ${clips.length} clip(s) -> public/voice-latency`);
+// The System One experiment: its scenarios, the recorded Laya decisions (if
+// scripts/record-decisions.mjs has been run), the word timings and the clips.
+const systemOne = join(root, "public/system-one");
+await mkdir(systemOne, { recursive: true });
+const s1Files = ["scenarios.json", "decisions.json"];
+let s1 = 0;
+for (const file of s1Files) {
+  try {
+    await cp(join(root, "src/system-one", file), join(systemOne, file));
+    s1 += 1;
+  } catch {
+    // decisions.json does not exist until the recording script has run.
+  }
+}
+for (const file of await readdir(join(root, "src/system-one/assets"))) {
+  await cp(join(root, "src/system-one/assets", file), join(systemOne, file));
+  s1 += 1;
+}
+console.log(
+  `assets: 2 vad file(s) -> public/vad, ${clips.length} clip(s) -> public/voice-latency, ${s1} file(s) -> public/system-one`,
+);

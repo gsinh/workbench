@@ -296,8 +296,14 @@ A voice agent that decides with a *System One* decision model — Laya, the
 open, Apache-2.0 alternative to TypeSafe's Jev — instead of generating text:
 after every word of the caller's turn it asks whether they have finished,
 what they want, how frustrated they are, and which pre-written reply fits.
-The page will replay real Laya outputs recorded offline, so it downloads
-nothing.
+The page replays real Laya outputs recorded offline, in time with a voiced
+call: the caller's words light up as they are spoken, the four answers move
+word by word, and three lanes show when the caller, the System One agent and
+a silence-only LLM agent (the latency budget's streaming build) each speak.
+The agent's policy is in `model.ts`: reply after a short silence when Laya
+thinks the caller has finished, wait longer when it does not, and hand the
+turn to an LLM when the best pre-written reply is under 50%. The tour's
+narration is computed from the recording, so it says what Laya actually did.
 
 Recording them is one command (Node 20+; the first run downloads ~1.7 GB of
 weights from Hugging Face):

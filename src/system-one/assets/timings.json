@@ -1,0 +1,119 @@
+{
+ "rate": 16000,
+ "scenarios": {
+  "number": {
+   "agentMs": 1895,
+   "parts": [
+    {
+     "words": 7,
+     "ms": 2286,
+     "wordEnds": [
+      524,
+      831,
+      1060,
+      1345,
+      1469,
+      2019,
+      2286
+     ]
+    },
+    {
+     "words": 3,
+     "ms": 1217,
+     "wordEnds": [
+      582,
+      784,
+      1217
+     ]
+    }
+   ],
+   "agentClip": "number-agent"
+  },
+  "change-of-mind": {
+   "agentMs": 2144,
+   "parts": [
+    {
+     "words": 14,
+     "ms": 4901,
+     "wordEnds": [
+      479,
+      619,
+      770,
+      1069,
+      1261,
+      1846,
+      2592,
+      2974,
+      3043,
+      3304,
+      3790,
+      4086,
+      4126,
+      4901
+     ]
+    }
+   ],
+   "agentClip": "greeting"
+  },
+  "frustrated": {
+   "agentMs": 2144,
+   "parts": [
+    {
+     "words": 18,
+     "ms": 6026,
+     "wordEnds": [
+      505,
+      734,
+      904,
+      1101,
+      1368,
+      1645,
+      1834,
+      2103,
+      2489,
+      2951,
+      3582,
+      3876,
+      4219,
+      4359,
+      5016,
+      5548,
+      5796,
+      6026
+     ]
+    }
+   ],
+   "agentClip": "greeting"
+  },
+  "unclear": {
+   "agentMs": 2144,
+   "parts": [
+    {
+     "words": 9,
+     "ms": 2720,
+     "wordEnds": [
+      525,
+      806,
+      977,
+      1193,
+      1445,
+      1633,
+      1916,
+      2305,
+      2720
+     ]
+    }
+   ],
+   "agentClip": "greeting"
+  }
+ },
+ "replies": {
+  "ask_more": 1780,
+  "rest_of_number": 1697,
+  "found_account": 1491,
+  "lower_bill": 2576,
+  "why_cancel": 2638,
+  "fix_it": 2734,
+  "human": 2040
+ }
+}

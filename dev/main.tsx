@@ -20,6 +20,7 @@ import { VadCompare } from "../src/vad";
 import ortMjs from "onnxruntime-web/ort-wasm-simd-threaded.mjs?url";
 import ortWasm from "onnxruntime-web/ort-wasm-simd-threaded.wasm?url";
 import { StirShaken } from "../src/stir-shaken";
+import { SystemOne } from "../src/system-one";
 import { VoiceLatency } from "../src/voice-latency";
 import { system } from "./system";
 import { apply, initial } from "./color-mode";
@@ -114,6 +115,18 @@ function App() {
             sampleUrl="/vad/speech-sample.wav"
             wasmPaths={{ mjs: ortMjs, wasm: ortWasm }}
           />
+        </Box>
+
+        <Box mt="16" pt="10" borderTopWidth="1px" borderColor="border">
+          <Heading as="h1" size="lg">
+            Decisions at the speed of speech
+          </Heading>
+          <Text mt="3" color="fg.muted" maxW="2xl" lineHeight="tall">
+            A voice agent that decides with a System One model instead of
+            writing text: after every word, Laya answers whether the caller has
+            finished, what they want and which reply to play.
+          </Text>
+          <SystemOne baseUrl="/system-one/" />
         </Box>
 
         <Box mt="16" pt="10" borderTopWidth="1px" borderColor="border">
