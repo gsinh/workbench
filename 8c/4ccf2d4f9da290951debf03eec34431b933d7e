@@ -1,0 +1,14 @@
+src/system-one/decisions.json
+  h_596ea7f867c8c4 1-2387
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8c4ccf2d4f9da290951debf03eec34431b933d7e",
+  "prompts": {},
+  "humans": {
+    "h_596ea7f867c8c4": {
+      "author": "gagan.singh@telekom-digital.com <gagan.singh@telekom-digital.com>"
+    }
+  }
+}
