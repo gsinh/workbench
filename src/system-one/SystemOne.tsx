@@ -275,7 +275,8 @@ export default function SystemOne({ baseUrl }: SystemOneProps) {
   let frustratedAfter = "";
   if (has("frustrated")) {
     const steps = stepsOf("frustrated");
-    const start = steps[0].answers.frustration.score;
+    // The lowest reading, not the first: a one-word transcript is noise.
+    const low = Math.min(...steps.map((s) => s.answers.frustration.score));
     const end = last("frustrated").answers;
     const label = (score: number) => levels[Math.min(levels.length - 1, Math.round(score))];
     const others = data.decisions.scenarios
@@ -284,7 +285,7 @@ export default function SystemOne({ baseUrl }: SystemOneProps) {
       .sort((a, b) => b.peak - a.peak)[0];
     const tech = runsOf(steps, "intent").find((r) => r.choice === specOf("frustrated")?.expected?.intent);
     frustratedAfter =
-      `Frustration went from ${start.toFixed(1)} to ${end.frustration.score.toFixed(1)} on a 0–${levels.length - 1} scale — “${label(end.frustration.score)}”, not “${levels[levels.length - 1]}”. ` +
+      `Frustration climbed from a low of ${low.toFixed(1)} to ${end.frustration.score.toFixed(1)} on a 0–${levels.length - 1} scale — “${label(end.frustration.score)}”, not “${levels[levels.length - 1]}”. ` +
       (others && others.peak > end.frustration.score
         ? `The “${specOf(others.id)?.title}” caller scored higher, at ${others.peak.toFixed(1)}: these scores are relative, not a reading of a person. `
         : "") +
