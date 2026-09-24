@@ -119,7 +119,7 @@ function App() {
 
         <Box mt="16" pt="10" borderTopWidth="1px" borderColor="border">
           <Heading as="h1" size="lg">
-            System One: a voice agent that decides as you speak
+            A voice agent that decides as you speak, using a System One decision model
           </Heading>
           <Text mt="3" color="fg.muted" maxW="2xl" lineHeight="tall">
             A voice agent that decides with a System One model instead of
