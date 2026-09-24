@@ -1,0 +1,10 @@
+Voice clips in this directory (*.wav)
+
+Synthesised with Kokoro-82M (https://github.com/hexgrad/kokoro), an
+open-weight text-to-speech model released under the Apache License 2.0,
+run through kokoro-onnx (MIT). Voices: am_michael (caller), af_heart
+(agent). Trimmed of leading and trailing silence, resampled to 16 kHz mono.
+timings.json holds each clip's length and the end time of every caller word,
+measured by synthesising each prefix of the sentence.
+
+The lines are original to this project and are released with it under MIT.
