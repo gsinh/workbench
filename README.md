@@ -290,6 +290,29 @@ runs, throws nothing, and reports about 0.001 for every frame of clean speech.
 pulls the JSEP build with WebGPU and WebNN support — 27 MB against 13.6 MB,
 for capability a WASM-only session never uses.
 
+### `system-one` — System One decisions for a voice agent (in progress)
+
+A voice agent that decides with a *System One* decision model — Laya, the
+open, Apache-2.0 alternative to TypeSafe's Jev — instead of generating text:
+after every word of the caller's turn it asks whether they have finished,
+what they want, how frustrated they are, and which pre-written reply fits.
+The page will replay real Laya outputs recorded offline, so it downloads
+nothing.
+
+Recording them is one command (Node 20+; the first run downloads ~1.7 GB of
+weights from Hugging Face):
+
+```sh
+npm install --no-save @receptron/laya@0.1.2
+node scripts/record-decisions.mjs            # writes src/system-one/decisions.json
+node scripts/record-decisions.mjs --dry-run  # check scenarios.json without the model
+```
+
+The scenarios and questions live in `src/system-one/scenarios.json`, which
+the script and the page both read. The output records the package version,
+Hugging Face revision, a fingerprint of the bundle, the machine and the
+latency per call, so the page can say exactly what it is showing.
+
 ### Shared: `src/shared/audio.ts`
 
 Microphone capture and playback for all three audio experiments, written for

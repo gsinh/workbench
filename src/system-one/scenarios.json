@@ -1,0 +1,71 @@
+{
+  "$comment": "Scenarios and questions for the System One experiment. Read by scripts/record-decisions.mjs, which asks Laya every question after every word of each caller turn, and by the page, which shows the questions and replays the recorded answers. Keep option text short: Laya cuts each option to 48 tokens and a question's options must fit in 192.",
+  "questions": {
+    "turn_complete": {
+      "type": "noul",
+      "instructions": "Has the caller finished what they wanted to say, so the agent should reply now?",
+      "criteria": {
+        "true": "the caller's sentence or request is complete",
+        "false": "the caller is mid-sentence or mid-number and will keep talking"
+      }
+    },
+    "intent": {
+      "type": "choice",
+      "instructions": "What does the caller want?",
+      "criteria": {
+        "billing": "a question about a bill, or a lower price",
+        "cancel": "to end their contract or service",
+        "tech_support": "help with something that is not working",
+        "account": "to change an appointment, plan or account details",
+        "human": "to speak to a person",
+        "unclear": "not clear yet"
+      }
+    },
+    "frustration": {
+      "type": "score",
+      "instructions": "How frustrated does the caller sound?",
+      "criteria": ["calm", "slightly annoyed", "frustrated", "angry"]
+    },
+    "reply": {
+      "type": "choice",
+      "instructions": "Which reply should the agent give next?",
+      "criteria": {
+        "ask_more": "Of course. Can you tell me a bit more?",
+        "rest_of_number": "Could you read me the rest of that number?",
+        "found_account": "Thanks, I've found your account.",
+        "lower_bill": "Let's look at your bill and find you a lower price.",
+        "why_cancel": "I can help with that. Can I ask what's prompted it?",
+        "fix_it": "I'm sorry it's still not working. Let's fix it now.",
+        "human": "I'll put you through to a colleague right away."
+      }
+    }
+  },
+  "scenarios": [
+    {
+      "id": "number",
+      "title": "The account number with a breath in it",
+      "agent": "Can I take your account number, please?",
+      "caller": "My account number is four, seven, two, nine, one, five.",
+      "pauseAfterWord": 7,
+      "pauseMs": 700
+    },
+    {
+      "id": "change-of-mind",
+      "title": "Cancel… actually, lower my bill",
+      "agent": "Thanks for calling. How can I help today?",
+      "caller": "I want to cancel my contract. Actually, can you just lower my bill instead?"
+    },
+    {
+      "id": "frustrated",
+      "title": "The third call about the same fault",
+      "agent": "Thanks for calling. How can I help today?",
+      "caller": "This is the third time I've called about my internet dropping out, and still nobody has fixed it."
+    },
+    {
+      "id": "unclear",
+      "title": "It's about the thing from last week",
+      "agent": "Thanks for calling. How can I help today?",
+      "caller": "Hi, um, it's about the thing from last week."
+    }
+  ]
+}
