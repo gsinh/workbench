@@ -219,49 +219,106 @@ export default function SystemOne({ baseUrl }: SystemOneProps) {
   const gainMs = silenceOnly.speaksAt - systemOne.speaksAt;
 
   // ---- Tour, narrated from the recording ----
+  // Every sentence below is computed from decisions.json and the scenario's
+  // `expected` answers, so it reports what Laya did — including where it did
+  // not do what the script intended.
   const stepsOf = (id: string) => data.decisions.scenarios.find((s) => s.id === id)?.steps ?? [];
-  const planOf = (id: string) => {
-    const spec = data.scenarios.find((s) => s.id === id)!;
-    return planCall(spec, data.timings.scenarios[id], stepsOf(id), decisionMs, data.timings.replies);
-  };
-  const numberSpec = data.scenarios.find((s) => s.id === "number");
-  const numberSteps = stepsOf("number");
-  const pauseAt = numberSpec?.pauseAfterWord ?? 0;
-  const numberPlan = numberSpec ? planOf("number") : null;
-  const intentRuns = runsOf(stepsOf("change-of-mind"), "intent");
-  const changeWords = data.scenarios.find((s) => s.id === "change-of-mind")?.caller.split(/\s+/) ?? [];
-  const frustratedSteps = stepsOf("frustrated");
-  const frustratedEnd = frustratedSteps[frustratedSteps.length - 1];
-  const unclearPlan = data.scenarios.some((s) => s.id === "unclear") ? planOf("unclear") : null;
+  const specOf = (id: string) => data.scenarios.find((s) => s.id === id);
+  const planOf = (id: string) =>
+    planCall(specOf(id)!, data.timings.scenarios[id], stepsOf(id), decisionMs, data.timings.replies);
+  const last = (id: string) => stepsOf(id)[stepsOf(id).length - 1];
+  const wordAt = (id: string, n: number) => bare(specOf(id)?.caller.split(/\s+/)[n - 1]);
+  const has = (id: string) => stepsOf(id).length > 0 && !!specOf(id);
+
+  const allDone = data.decisions.scenarios.flatMap((s) => s.steps.map((st) => st.answers.turn_complete.p));
+  const doneRange = allDone.length > 0 ? [Math.min(...allDone), Math.max(...allDone)] : [0, 0];
+
+  let numberAfter = "";
+  if (has("number")) {
+    const spec = specOf("number")!;
+    const pause = spec.pauseAfterWord ?? 0;
+    const atPause = stepsOf("number")[pause - 1]?.answers.turn_complete.p ?? 0;
+    const atEnd = last("number").answers.turn_complete.p;
+    const plan = planOf("number");
+    const close = Math.abs(atPause - DONE_THRESHOLD) < 0.1 || Math.abs(atEnd - DONE_THRESHOLD) < 0.1;
+    numberAfter =
+      `At the breath after “${wordAt("number", pause)}” Laya put the chance they had finished at ${pct(atPause)}; after the last digit, ${pct(atEnd)}. ` +
+      (plan.systemOne.cutIn
+        ? "It took the breath for the end of the turn and cut in. "
+        : `That is the right side of the ${pct(DONE_THRESHOLD)} line both times${close ? ", but only just" : ""}, so it waited out the breath. `) +
+      (plan.silenceOnly.cutIn
+        ? `The silence-only agent, waiting ${ms(SILENCE_ENDPOINT_MS)} of quiet, cut in at the pause.`
+        : "The silence-only agent waited too.");
+  }
+
+  let changeAfter = "";
+  if (has("change-of-mind")) {
+    const spec = specOf("change-of-mind")!;
+    const intent = runsOf(stepsOf("change-of-mind"), "intent");
+    const replyRuns = runsOf(stepsOf("change-of-mind"), "reply");
+    const end = last("change-of-mind").answers;
+    const settled = intent[intent.length - 1];
+    const expectedIntent = spec.expected?.intent;
+    const intentRight = settled.choice === expectedIntent;
+    const replyRight = end.reply.choice === spec.expected?.reply;
+    const replyTurn = replyRuns.find((r) => r.choice === end.reply.choice && r.to === replyRuns[replyRuns.length - 1].to);
+    changeAfter =
+      `“What do they want?” settled on “${prose(settled.choice)}” at the word “${wordAt("change-of-mind", settled.from)}”` +
+      (intentRight
+        ? ` — the right reading.`
+        : ` and stayed there to the end (${pct(end.intent.probs[settled.choice] ?? 0)}), even after “lower my bill instead”.`) +
+      ` The reply question ${replyRight ? "caught the change of mind" : "did not"}: ` +
+      `by “${wordAt("change-of-mind", replyTurn?.from ?? spec.caller.split(/\s+/).length)}” it picked “${bare(replyOptions[end.reply.choice])}” (${pct(end.reply.probs[end.reply.choice] ?? 0)}).` +
+      (!intentRight && replyRight ? " Same model, same pass: two questions, two readings of one sentence." : "");
+  }
+
+  let frustratedAfter = "";
+  if (has("frustrated")) {
+    const steps = stepsOf("frustrated");
+    const start = steps[0].answers.frustration.score;
+    const end = last("frustrated").answers;
+    const label = (score: number) => levels[Math.min(levels.length - 1, Math.round(score))];
+    const others = data.decisions.scenarios
+      .filter((s) => s.id !== "frustrated")
+      .map((s) => ({ id: s.id, peak: Math.max(...s.steps.map((st) => st.answers.frustration.score)) }))
+      .sort((a, b) => b.peak - a.peak)[0];
+    const tech = runsOf(steps, "intent").find((r) => r.choice === specOf("frustrated")?.expected?.intent);
+    frustratedAfter =
+      `Frustration went from ${start.toFixed(1)} to ${end.frustration.score.toFixed(1)} on a 0–${levels.length - 1} scale — “${label(end.frustration.score)}”, not “${levels[levels.length - 1]}”. ` +
+      (others && others.peak > end.frustration.score
+        ? `The “${specOf(others.id)?.title}” caller scored higher, at ${others.peak.toFixed(1)}: these scores are relative, not a reading of a person. `
+        : "") +
+      (tech ? `It knew this was a technical fault from the word “${wordAt("frustrated", tech.from)}”, and picked “${bare(replyOptions[end.reply.choice])}”.` : "");
+  }
+
+  let unclearAfter = "";
+  if (has("unclear")) {
+    const plan = planOf("unclear");
+    unclearAfter = plan.systemOne.handedOff
+      ? `Its best reply scored ${pct(plan.systemOne.replyConfidence)}, under the ${pct(REPLY_CONFIDENT)} bar, so the agent handed the turn to the LLM rather than guess — about ${ms(LLM_AFTER_TURN_MS)} of generating and speaking instead of playing a ready reply.`
+      : `Its best reply scored ${pct(plan.systemOne.replyConfidence)}, over the ${pct(REPLY_CONFIDENT)} bar, so it answered directly.`;
+  }
 
   const tourSteps: TourStep[] = [
     {
       target: "headline",
-      say: `A voice agent has to decide things while the caller is still talking. Here a System One model — Laya, open source — answers four questions after every word, in about ${ms(decisionMs)} each.`,
+      say: `A voice agent has to decide things while the caller is still talking. Here a System One model — Laya, open source — answers four questions after every word. The answers are real, recorded on an ${data.decisions.machine.cpu}.`,
     },
     {
       target: "call",
-      say: "A caller reads out an account number and takes a breath halfway through. Watch the “finished?” curve.",
+      say: "A caller reads out an account number and takes a breath halfway through. Watch the “finished?” curve against its line.",
       showLabel: "Play it",
       show: () => void play("number"),
       done: played[1] === "number",
-      after: numberPlan
-        ? `At the breath after “${bare(numberSteps[pauseAt - 1]?.text.split(" ").pop())}”, Laya put the chance they had finished at ${pct(numberSteps[pauseAt - 1]?.answers.turn_complete.p ?? 0)}; after the last digit, ${pct(numberSteps[numberSteps.length - 1]?.answers.turn_complete.p ?? 0)}. ${numberPlan.systemOne.cutIn ? "It still took the pause for the end of the turn." : "So it waited out the breath."} The silence-only agent ${numberPlan.silenceOnly.cutIn ? "cut in at the pause" : "waited too"}.`
-        : "",
+      after: numberAfter,
     },
     {
       target: "intent",
-      say: "This caller changes their mind halfway through. Watch what the agent thinks they want.",
+      say: "This caller changes their mind halfway through. Watch what the agent thinks they want, and which reply it picks.",
       showLabel: "Play it",
       show: () => void play("change-of-mind"),
       done: played[2] === "change-of-mind",
-      after:
-        intentRuns.length > 1
-          ? intentRuns
-              .map((r) => `“${prose(r.choice)}” from “${bare(changeWords[r.from - 1])}”`)
-              .join(", then ")
-              .replace(/^./, (c) => c.toUpperCase()) + ". The answer moves with the sentence, word by word."
-          : `It held “${prose(intentRuns[0]?.choice ?? "")}” throughout.`,
+      after: changeAfter,
     },
     {
       target: "frustration",
@@ -269,25 +326,19 @@ export default function SystemOne({ baseUrl }: SystemOneProps) {
       showLabel: "Play it",
       show: () => void play("frustrated"),
       done: played[3] === "frustrated",
-      after: frustratedEnd
-        ? `By the end it scored frustration ${frustratedEnd.answers.frustration.score.toFixed(1)} of ${levels.length - 1} (“${levels[Math.round(frustratedEnd.answers.frustration.score)]}”) and picked “${replyOptions[frustratedEnd.answers.reply.choice]}”.`
-        : "",
+      after: frustratedAfter,
     },
     {
       target: "reply",
-      say: "A vague opener. When the best reply is not a confident one, a System One agent should hand over rather than guess.",
+      say: "A vague opener. When no ready reply is a confident fit, a System One agent should hand over rather than guess.",
       showLabel: "Play it",
       show: () => void play("unclear"),
       done: played[4] === "unclear",
-      after: unclearPlan
-        ? unclearPlan.systemOne.handedOff
-          ? `Its best reply scored ${pct(unclearPlan.systemOne.replyConfidence)}, under the ${pct(REPLY_CONFIDENT)} bar, so the call went to the LLM — about ${ms(LLM_AFTER_TURN_MS)} of generating and speaking instead of playing a ready reply.`
-          : `Its best reply scored ${pct(unclearPlan.systemOne.replyConfidence)}, over the ${pct(REPLY_CONFIDENT)} bar, so it answered directly.`
-        : "",
+      after: unclearAfter,
     },
     {
       target: "provenance",
-      say: `Every answer here is a real Laya output, recorded offline: ${data.decisions.latencyMs.calls} decisions, median ${ms(decisionMs)} each on ${data.decisions.machine.cpu}. Pick any call and step through it word by word.`,
+      say: `Two honest limits. “Has the caller finished?” is Laya's weakest answer here: across all four calls it stayed between ${pct(doneRange[0])} and ${pct(doneRange[1])}, so a trained turn detector should make that call. And at ${ms(decisionMs)} a decision, a live agent could not ask again after every word — people speak three or four a second — so it would ask about the latest words each time it is free.`,
     },
   ];
   const startTour = () => {
@@ -465,7 +516,9 @@ export default function SystemOne({ baseUrl }: SystemOneProps) {
         {data.decisions.revision ? ` (revision ${data.decisions.revision})` : ""}, run{" "}
         {data.decisions.latencyMs.calls} times on {data.decisions.machine.cpu} on{" "}
         {new Date(data.decisions.recordedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
-        ; median {ms(decisionMs)} per decision. The comparison agent waits{" "}
+        ; median {ms(decisionMs)} per decision. The replay shows one decision
+        per word; live, at that speed, an agent would decide on the latest words
+        every few words. The comparison agent waits{" "}
         {ms(SILENCE_ENDPOINT_MS)} of silence and then runs the latency budget&rsquo;s
         streaming pipeline ({ms(LLM_AFTER_TURN_MS)}). Voices synthesised with
         Kokoro.

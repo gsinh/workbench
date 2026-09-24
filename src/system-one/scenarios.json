@@ -1,5 +1,5 @@
 {
-  "$comment": "Scenarios and questions for the System One experiment. Read by scripts/record-decisions.mjs, which asks Laya every question after every word of each caller turn, and by the page, which shows the questions and replays the recorded answers. Keep option text short: Laya cuts each option to 48 tokens and a question's options must fit in 192.",
+  "$comment": "Scenarios and questions for the System One experiment. Read by scripts/record-decisions.mjs, which asks Laya every question after every word of each caller turn, and by the page, which shows the questions and replays the recorded answers. Keep option text short: Laya cuts each option to 48 tokens and a question's options must fit in 192. Each scenario's `expected` is what the script was written to mean, so the page can say where Laya agreed with it and where it did not.",
   "questions": {
     "turn_complete": {
       "type": "noul",
@@ -24,7 +24,12 @@
     "frustration": {
       "type": "score",
       "instructions": "How frustrated does the caller sound?",
-      "criteria": ["calm", "slightly annoyed", "frustrated", "angry"]
+      "criteria": [
+        "calm",
+        "slightly annoyed",
+        "frustrated",
+        "angry"
+      ]
     },
     "reply": {
       "type": "choice",
@@ -47,25 +52,42 @@
       "agent": "Can I take your account number, please?",
       "caller": "My account number is four, seven, two, nine, one, five.",
       "pauseAfterWord": 7,
-      "pauseMs": 700
+      "pauseMs": 700,
+      "expected": {
+        "intent": "account",
+        "reply": "found_account",
+        "turnEndsAfterWord": 10
+      }
     },
     {
       "id": "change-of-mind",
       "title": "Cancel… actually, lower my bill",
       "agent": "Thanks for calling. How can I help today?",
-      "caller": "I want to cancel my contract. Actually, can you just lower my bill instead?"
+      "caller": "I want to cancel my contract. Actually, can you just lower my bill instead?",
+      "expected": {
+        "intent": "billing",
+        "reply": "lower_bill"
+      }
     },
     {
       "id": "frustrated",
       "title": "The third call about the same fault",
       "agent": "Thanks for calling. How can I help today?",
-      "caller": "This is the third time I've called about my internet dropping out, and still nobody has fixed it."
+      "caller": "This is the third time I've called about my internet dropping out, and still nobody has fixed it.",
+      "expected": {
+        "intent": "tech_support",
+        "reply": "fix_it"
+      }
     },
     {
       "id": "unclear",
       "title": "It's about the thing from last week",
       "agent": "Thanks for calling. How can I help today?",
-      "caller": "Hi, um, it's about the thing from last week."
+      "caller": "Hi, um, it's about the thing from last week.",
+      "expected": {
+        "intent": "unclear",
+        "reply": "ask_more"
+      }
     }
   ]
 }

@@ -59,6 +59,8 @@ export type ScenarioSpec = {
   caller: string;
   pauseAfterWord?: number;
   pauseMs?: number;
+  /** What the script was written to mean, to score Laya against. */
+  expected?: { intent?: string; reply?: string; turnEndsAfterWord?: number };
 };
 
 export type Timings = {
