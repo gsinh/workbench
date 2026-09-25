@@ -1,7 +1,7 @@
 "use client";
 
 import { Box, Button, Flex, HStack, Text } from "@chakra-ui/react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 /**
  * A guided walk through an experiment: one idea per step, one highlighted
@@ -250,53 +250,26 @@ export function Tour({
 }
 
 /**
- * The button that starts a tour, with a "try it →" nudge beside it until the
- * reader has taken or dismissed a tour once. The "seen" flag is per
- * experiment and per browser; storage can be unavailable, in which case the
- * nudge simply never shows.
+ * The button that starts a tour, with a "try it →" nudge beside it. Shown on
+ * every visit, not just the first: the tour is the way in for most readers,
+ * and a returning one may be showing the page to someone else.
  */
-export function TourButton({ id, onStart }: { id: string; onStart: () => void }) {
-  const key = `workbench:tour-seen:${id}`;
-  const [fresh, setFresh] = useState(false);
-
-  useEffect(() => {
-    try {
-      setFresh(!window.localStorage.getItem(key));
-    } catch {
-      setFresh(false);
-    }
-  }, [key]);
-
+export function TourButton({ onStart }: { id?: string; onStart: () => void }) {
   return (
     <HStack gap="2">
-      {fresh && (
-        <>
-          <style>{keyframes}</style>
-          <Text
-            as="span"
-            fontSize="xs"
-            fontWeight="bold"
-            color="colorPalette.fg"
-            aria-hidden
-            animation="workbench-tour-nudge-right 1.2s ease-in-out infinite"
-            _motionReduce={{ animation: "none" }}
-          >
-            try it →
-          </Text>
-        </>
-      )}
-      <Button
-        size="xs"
-        onClick={() => {
-          try {
-            window.localStorage.setItem(key, "1");
-          } catch {
-            // Private windows and blocked storage: the nudge just recurs.
-          }
-          setFresh(false);
-          onStart();
-        }}
+      <style>{keyframes}</style>
+      <Text
+        as="span"
+        fontSize="xs"
+        fontWeight="bold"
+        color="colorPalette.fg"
+        aria-hidden
+        animation="workbench-tour-nudge-right 1.2s ease-in-out infinite"
+        _motionReduce={{ animation: "none" }}
       >
+        try it →
+      </Text>
+      <Button size="xs" onClick={onStart}>
         ▶ Take the 1-minute tour
       </Button>
     </HStack>
