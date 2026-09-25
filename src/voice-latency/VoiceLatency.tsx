@@ -156,10 +156,12 @@ export default function VoiceLatency({ clipsUrl }: VoiceLatencyProps) {
   const steps: TourStep[] = [
     {
       target: "headline",
+      cue: "The gap the caller feels",
       say: "This is the gap a caller feels: from their last word to the agent's first. Seven costs add up to it, and only one of them is the model thinking. Let's hear it.",
     },
     {
       target: "call",
+      cue: "Listen for the gap",
       say: "First, the build most teams start with: wait for silence, upload, transcribe, think, then speak.",
       showLabel: "Play it",
       show: () => hearPreset("batch"),
@@ -168,6 +170,7 @@ export default function VoiceLatency({ clipsUrl }: VoiceLatencyProps) {
     },
     {
       target: "call",
+      cue: "Hear how much sooner",
       say: "The same parts, streamed: transcription runs while the caller talks, and speech starts on the first clause.",
       showLabel: "Play it",
       show: () => hearPreset("streaming"),
@@ -176,6 +179,7 @@ export default function VoiceLatency({ clipsUrl }: VoiceLatencyProps) {
     },
     {
       target: "endpoint",
+      cue: "Drag this to 200 ms",
       say: "So make the agent less patient. Drag Endpointing down to 200 ms.",
       showLabel: "Drag it for me",
       show: () => slideEndpoint(200),
@@ -184,6 +188,7 @@ export default function VoiceLatency({ clipsUrl }: VoiceLatencyProps) {
     },
     {
       target: "call",
+      cue: "Listen at the breath",
       say: "This caller reads out an account number and takes a breath halfway through.",
       showLabel: "Play it",
       show: () => call.current?.play({ scenario: "pause", budget: mine }),
@@ -194,6 +199,7 @@ export default function VoiceLatency({ clipsUrl }: VoiceLatencyProps) {
     },
     {
       target: "call",
+      cue: "Listen for the gap now",
       say: "Speech-to-speech drops the transcript stage altogether: one model, audio in and audio out.",
       showLabel: "Play it",
       show: () => hearPreset("realtime"),
@@ -202,6 +208,7 @@ export default function VoiceLatency({ clipsUrl }: VoiceLatencyProps) {
     },
     {
       target: "barge",
+      cue: "When the caller cuts in",
       say: "The other half of a conversation: when the caller interrupts, how long does the agent keep talking?",
       showLabel: "Show the breakdown",
       show: () => setShowBarge(true),

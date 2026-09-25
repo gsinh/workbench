@@ -228,10 +228,12 @@ export default function StirShaken() {
   const steps: TourStep[] = [
     {
       target: "verdict",
+      cue: "The receiver's verdict",
       say: "Calls in the US and Canada are meant to carry a signed token saying who is calling and how sure the caller's own carrier is of it. This tour sends a few, and tampers with some on the way.",
     },
     {
       target: "path",
+      cue: "Follow the call",
       say: "First, an honest call: the originating carrier signs it and the terminating carrier checks it.",
       showLabel: "Send it",
       show: () => send("send", valid),
@@ -240,6 +242,7 @@ export default function StirShaken() {
     },
     {
       target: "path",
+      cue: "Watch the check fail",
       say: "Now intercept the same call in the network and change the caller's number, the way a spoofer would.",
       showLabel: "Change the number",
       show: () => send("tamper", valid),
@@ -248,6 +251,7 @@ export default function StirShaken() {
     },
     {
       target: "attestation",
+      cue: "The trust level",
       say: "A signature proves who signed, not who is calling. Send a call signed at the lowest level of trust.",
       showLabel: "Send a C call",
       show: () => send("send", sampleOf("gateway")),
@@ -256,6 +260,7 @@ export default function StirShaken() {
     },
     {
       target: "path",
+      cue: "Watch the replay",
       say: "Last trick: record a genuine token and send it again later, with a different call.",
       showLabel: "Replay it",
       show: () => send("replay", valid),
@@ -264,6 +269,7 @@ export default function StirShaken() {
     },
     {
       target: "checks",
+      cue: "Watch which check fails",
       say: "Beyond the signature, the receiver checks the token's shape against the standards. Send one whose claims are in the wrong order.",
       showLabel: "Send it",
       show: () => send("send", sampleOf("unordered")),
@@ -272,6 +278,7 @@ export default function StirShaken() {
     },
     {
       target: "input",
+      cue: "Paste your own here",
       say: "Paste an Identity header from your own SIP traces to inspect it the same way. It never leaves your browser.",
     },
   ];

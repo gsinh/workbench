@@ -331,10 +331,12 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
   const steps: TourStep[] = [
     {
       target: "verdict",
+      cue: "Where they disagree",
       say: "Two detectors are listening to the same clip. One goes by loudness; the other is a small neural network running in your browser. This tour finds where they disagree, and why it matters.",
     },
     {
       target: "lanes",
+      cue: "Watch both detectors",
       say: "Listen first. The playhead shows which detector thinks someone is speaking at each moment.",
       showLabel: "Listen",
       show: () => {
@@ -345,6 +347,7 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
     },
     {
       target: "inputs",
+      cue: "Add the slam here",
       say: "Now drop a door slam into a pause in the speech: loud, sudden, and nothing like a voice.",
       showLabel: "Add the slam",
       show: () => void addBurst(),
@@ -353,6 +356,7 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
     },
     {
       target: "closeup",
+      cue: "The slam, up close",
       say: "Here is the slam up close. Play just that second.",
       showLabel: "Play the slam",
       show: playSlam,
@@ -361,6 +365,7 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
     },
     {
       target: "closeup",
+      cue: "Now ask the model",
       say: "Now ask the neural model. It is about 6 MB, downloaded once, and runs here in your browser.",
       showLabel: "Load the model",
       show: () => void loadModel(),
@@ -372,6 +377,7 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
     },
     {
       target: "margin",
+      cue: "Its only setting",
       say: "Can the loudness detector be tuned to ignore the slam? Its only setting is how far above the room noise to trigger. Turn it all the way up.",
       showLabel: "Turn it up for me",
       show: () => slideMargin(30),
@@ -383,6 +389,7 @@ export default function VadCompare({ modelUrl, sampleUrl, wasmPaths }: VadCompar
     },
     {
       target: "inputs",
+      cue: "Record your voice here",
       say: "Try it on your own voice: record a sentence with a pause in it, then knock on the desk.",
       showLabel: recording ? "■ Stop and analyse" : "● Record",
       show: toggleRecording,

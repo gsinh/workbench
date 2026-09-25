@@ -253,10 +253,12 @@ export default function Diarize() {
   const steps: TourStep[] = [
     {
       target: "verdict",
+      cue: "Speakers it found",
       say: "This works out who spoke when, with no trained model: just the sound's spectrum and some arithmetic. The sample is a synthetic conversation with a known script, so the answer can be scored.",
     },
     {
       target: "timeline",
+      cue: "Who spoke when",
       say: "Play the conversation. Each stretch of speech becomes one dot below: a fingerprint of how that stretch sounds.",
       showLabel: "Play it",
       show: () => {
@@ -267,6 +269,7 @@ export default function Diarize() {
     },
     {
       target: "scatter",
+      cue: "Watch the groups merge",
       say: "Now the grouping. It joins the two most alike groups, again and again, until two are left.",
       showLabel: "Watch it",
       show: replayClustering,
@@ -277,6 +280,7 @@ export default function Diarize() {
     },
     {
       target: "speakers",
+      cue: "Set the count here",
       say: "Tell it there are three speakers instead of two.",
       showLabel: "Set it to 3",
       show: () => update({ speakers: 3 }),
@@ -287,6 +291,7 @@ export default function Diarize() {
     },
     {
       target: "speakers",
+      cue: "Or let it decide",
       say: "Or let it decide: Auto keeps merging until the closest pair is further apart than a threshold.",
       showLabel: "Set it to Auto",
       show: () => update({ speakers: "auto" }),
@@ -295,6 +300,7 @@ export default function Diarize() {
     },
     {
       target: "inputs",
+      cue: "Record two voices here",
       say: "Try it on two real voices: record a short back-and-forth.",
       showLabel: recording !== null ? "■ Stop and analyse" : "● Record",
       show: toggleRecording,

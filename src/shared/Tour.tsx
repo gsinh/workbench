@@ -88,6 +88,7 @@ export function tourSpotlight(step: Pick<TourStep, "target" | "cue"> | null) {
 const keyframes = `
 @keyframes workbench-tour-bob { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-4px) } }
 @keyframes workbench-tour-nudge { 0%, 100% { transform: translateX(0) } 50% { transform: translateX(-4px) } }
+@keyframes workbench-tour-nudge-right { 0%, 100% { transform: translateX(0) } 50% { transform: translateX(4px) } }
 `;
 
 function reducedMotion() {
@@ -249,9 +250,10 @@ export function Tour({
 }
 
 /**
- * The button that starts a tour, pulsing gently until the reader has taken or
- * dismissed a tour once. The "seen" flag is per experiment and per browser;
- * storage can be unavailable, in which case it simply never pulses.
+ * The button that starts a tour, with a "try it →" nudge beside it until the
+ * reader has taken or dismissed a tour once. The "seen" flag is per
+ * experiment and per browser; storage can be unavailable, in which case the
+ * nudge simply never shows.
  */
 export function TourButton({ id, onStart }: { id: string; onStart: () => void }) {
   const key = `workbench:tour-seen:${id}`;
@@ -266,22 +268,38 @@ export function TourButton({ id, onStart }: { id: string; onStart: () => void })
   }, [key]);
 
   return (
-    <Button
-      size="xs"
-      onClick={() => {
-        try {
-          window.localStorage.setItem(key, "1");
-        } catch {
-          // Private windows and blocked storage: the pulse just recurs.
-        }
-        setFresh(false);
-        onStart();
-      }}
-      animation={fresh ? "pulse 2s ease-in-out infinite" : undefined}
-      _motionReduce={{ animation: "none" }}
-    >
-      ▶ Take the 1-minute tour
-    </Button>
+    <HStack gap="2">
+      {fresh && (
+        <>
+          <style>{keyframes}</style>
+          <Text
+            as="span"
+            fontSize="xs"
+            fontWeight="bold"
+            color="colorPalette.fg"
+            aria-hidden
+            animation="workbench-tour-nudge-right 1.2s ease-in-out infinite"
+            _motionReduce={{ animation: "none" }}
+          >
+            try it →
+          </Text>
+        </>
+      )}
+      <Button
+        size="xs"
+        onClick={() => {
+          try {
+            window.localStorage.setItem(key, "1");
+          } catch {
+            // Private windows and blocked storage: the nudge just recurs.
+          }
+          setFresh(false);
+          onStart();
+        }}
+      >
+        ▶ Take the 1-minute tour
+      </Button>
+    </HStack>
   );
 }
 
