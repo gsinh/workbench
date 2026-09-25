@@ -230,7 +230,7 @@ export default function VoiceLatency({ clipsUrl }: VoiceLatencyProps) {
   return (
     <Box
       ref={root}
-      css={{ ...vizVars, ...tourSpotlight(tourIndex !== null ? steps[tourIndex].target : null) }}
+      css={{ ...vizVars, ...tourSpotlight(tourIndex !== null ? steps[tourIndex] : null) }}
     >
       {/* Hero figure: the one number the whole page is about. */}
       <Flex align="baseline" gap="3" wrap="wrap" data-tour="headline">

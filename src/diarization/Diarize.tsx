@@ -320,7 +320,7 @@ export default function Diarize() {
   return (
     <Box
       ref={root}
-      css={{ ...vizVars, ...tourSpotlight(tourIndex !== null ? steps[tourIndex].target : null) }}
+      css={{ ...vizVars, ...tourSpotlight(tourIndex !== null ? steps[tourIndex] : null) }}
     >
       {/* Verdict */}
       <Flex align="baseline" gap="3" wrap="wrap" data-tour="verdict">

@@ -303,11 +303,15 @@ export default function SystemOne({ baseUrl }: SystemOneProps) {
   const tourSteps: TourStep[] = [
     {
       target: "headline",
+      cue: "Time to reply",
       say: `A voice agent has to decide things while the caller is still talking. Here a System One model — Laya, open source — answers four questions after every word. The answers are real, recorded on an ${data.decisions.machine.cpu}.`,
     },
     {
-      target: "call",
-      say: "A caller reads out an account number and takes a breath halfway through. Watch the “finished?” curve against its line.",
+      // The curve, not the transcript: on a phone the two do not fit on screen
+      // together, and the curve is what the step is about.
+      target: "done",
+      cue: "Watch this cross 50%",
+      say: "A caller reads out an account number and takes a breath halfway through. Watch the chance they have finished against the 50% line.",
       showLabel: "Play it",
       show: () => void play("number"),
       done: played[1] === "number",
@@ -315,6 +319,7 @@ export default function SystemOne({ baseUrl }: SystemOneProps) {
     },
     {
       target: "intent",
+      cue: "Watch what it thinks they want",
       say: "This caller changes their mind halfway through. Watch what the agent thinks they want, and which reply it picks.",
       showLabel: "Play it",
       show: () => void play("change-of-mind"),
@@ -323,6 +328,7 @@ export default function SystemOne({ baseUrl }: SystemOneProps) {
     },
     {
       target: "frustration",
+      cue: "Watch this bar",
       say: "Third call about the same fault. Watch frustration, and which reply it picks.",
       showLabel: "Play it",
       show: () => void play("frustrated"),
@@ -331,6 +337,7 @@ export default function SystemOne({ baseUrl }: SystemOneProps) {
     },
     {
       target: "reply",
+      cue: "Watch the best reply's score",
       say: "A vague opener. When no ready reply is a confident fit, a System One agent should hand over rather than guess.",
       showLabel: "Play it",
       show: () => void play("unclear"),
@@ -339,6 +346,7 @@ export default function SystemOne({ baseUrl }: SystemOneProps) {
     },
     {
       target: "provenance",
+      cue: "The fine print",
       say: `Two honest limits. “Has the caller finished?” is Laya's weakest answer here: across all four calls it stayed between ${pct(doneRange[0])} and ${pct(doneRange[1])}, so a trained turn detector should make that call. And at ${ms(decisionMs)} a decision, a live agent could not ask again after every word — people speak three or four a second — so it would ask about the latest words each time it is free.`,
     },
   ];
@@ -354,7 +362,7 @@ export default function SystemOne({ baseUrl }: SystemOneProps) {
   return (
     <Box
       ref={root}
-      css={{ ...vizVars, ...tourSpotlight(tourIndex !== null ? tourSteps[tourIndex].target : null) }}
+      css={{ ...vizVars, ...tourSpotlight(tourIndex !== null ? tourSteps[tourIndex] : null) }}
     >
       <DeepLink onOpen={(at) => setTourIndex(Math.min(tourSteps.length - 1, at))} />
 

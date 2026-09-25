@@ -303,7 +303,7 @@ export default function StirShaken() {
   return (
     <Box
       ref={root}
-      css={tourSpotlight(tourIndex !== null ? steps[tourIndex].target : null)}
+      css={tourSpotlight(tourIndex !== null ? steps[tourIndex] : null)}
     >
       {/* Verdict. The signature counts as a check here, not as a separate
           result — a token that fails it has failed, whatever else is in order,

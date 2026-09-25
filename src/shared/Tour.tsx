@@ -1,7 +1,7 @@
 "use client";
 
 import { Box, Button, Flex, HStack, Text } from "@chakra-ui/react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 /**
  * A guided walk through an experiment: one idea per step, one highlighted
@@ -13,14 +13,17 @@ import { type ReactNode, useEffect, useState } from "react";
  * responds to it rather than reciting.
  *
  * Highlighting works by attribute. The host marks regions with
- * `data-tour="name"`, and spreads `tourSpotlight(target)` into its root's
- * `css`: every marked region except the target is dimmed. Unmarked content is
+ * `data-tour="name"`, and spreads `tourSpotlight(step)` into its root's
+ * `css`: every marked region except the target is dimmed, and the target gets
+ * an outline and a bouncing "↓" cue saying what to watch. Unmarked content is
  * left alone, so prose around the controls stays readable.
  */
 
 export type TourStep = {
   /** The `data-tour` region this step is about. */
   target: string;
+  /** The arrow's label on the target, e.g. "Watch this line". Short. */
+  cue?: string;
   /** What to notice or do. One or two sentences. */
   say: ReactNode;
   /** Label for the button that performs the step, e.g. "Play it". */
@@ -33,25 +36,59 @@ export type TourStep = {
   after?: ReactNode;
 };
 
-/** CSS for the host root: dims every tour region except the target. */
-export function tourSpotlight(target: string | null) {
-  if (!target) return {};
+/**
+ * CSS for the host root: dims every tour region except the target, and pins a
+ * bouncing cue to the target's top edge so the eye knows where to go. The cue
+ * is a pseudo-element, so it moves with the layout and needs no measuring.
+ */
+export function tourSpotlight(step: Pick<TourStep, "target" | "cue"> | null) {
+  if (!step) return {};
   return {
     "& [data-tour]": {
       opacity: 0.35,
       transition: "opacity 200ms ease",
     },
-    [`& [data-tour="${target}"]`]: {
+    [`& [data-tour="${step.target}"]`]: {
       opacity: 1,
+      position: "relative",
       outline: "2px solid var(--chakra-colors-color-palette-solid)",
       outlineOffset: "6px",
       borderRadius: "var(--chakra-radii-l2)",
+      // Room above for the cue when the step scrolls it into view.
+      scrollMarginTop: "3rem",
+    },
+    [`& [data-tour="${step.target}"]::before`]: {
+      content: JSON.stringify(`↓ ${step.cue ?? "Look here"}`),
+      position: "absolute",
+      // Straddles the outline's top edge, like a label on the box.
+      top: "calc(-6px - 1.35em)",
+      insetInlineStart: "2",
+      zIndex: 1,
+      px: "2",
+      py: "0.5",
+      fontSize: "11px",
+      fontWeight: "bold",
+      lineHeight: "1.4",
+      whiteSpace: "nowrap",
+      color: "var(--chakra-colors-color-palette-contrast)",
+      bg: "var(--chakra-colors-color-palette-solid)",
+      rounded: "full",
+      shadow: "sm",
+      pointerEvents: "none",
+      animation: "workbench-tour-bob 1.2s ease-in-out infinite",
     },
     "@media (prefers-reduced-motion: reduce)": {
       "& [data-tour]": { transition: "none" },
+      [`& [data-tour="${step.target}"]::before`]: { animation: "none" },
     },
   };
 }
+
+/** The cue's and the play hint's motion. Rendered with the card. */
+const keyframes = `
+@keyframes workbench-tour-bob { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-4px) } }
+@keyframes workbench-tour-nudge { 0%, 100% { transform: translateX(0) } 50% { transform: translateX(-4px) } }
+`;
 
 function reducedMotion() {
   return (
@@ -82,10 +119,23 @@ export function Tour({
   const step = steps[index];
   const last = index === steps.length - 1;
 
-  // Bring the target into view on every step change.
+  const card = useRef<HTMLDivElement>(null);
+
+  // Bring the target into view on every step change: centred in the part of
+  // the screen the card does not cover, or from its top if it will not fit.
+  // On a phone the card takes a third of the screen, so plain centring hides
+  // the lower half of a tall target behind it.
   useEffect(() => {
     const target = root?.querySelector(`[data-tour="${step.target}"]`);
-    target?.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" });
+    if (!target) return;
+    const box = target.getBoundingClientRect();
+    const cueRoom = 48;
+    const visible = window.innerHeight - (card.current?.offsetHeight ?? 0) - 24;
+    const top = Math.max(cueRoom, (visible - box.height) / 2);
+    window.scrollTo({
+      top: window.scrollY + box.top - top,
+      behavior: reducedMotion() ? "auto" : "smooth",
+    });
   }, [root, step.target]);
 
   // Deep link: #tour-3 opens step 3. Kept in the address bar so a step can be
@@ -105,6 +155,7 @@ export function Tour({
 
   return (
     <Box
+      ref={card}
       role="dialog"
       aria-label="Guided tour"
       position="sticky"
@@ -118,6 +169,7 @@ export function Tour({
       rounded="l3"
       shadow="lg"
     >
+      <style>{keyframes}</style>
       <Flex justify="space-between" align="center" gap="3">
         <Text fontSize="2xs" color="fg.muted" fontVariantNumeric="tabular-nums">
           Step {index + 1} of {steps.length}
@@ -157,9 +209,26 @@ export function Tour({
       <Flex mt="4" gap="2" wrap="wrap" justify="space-between">
         <HStack gap="2">
           {step.show && (
-            <Button size="xs" variant={step.done ? "outline" : "solid"} onClick={step.show}>
+            <Button
+              size="xs"
+              variant={step.done ? "outline" : "solid"}
+              onClick={step.show}
+            >
               {step.showLabel ?? "Show me"}
             </Button>
+          )}
+          {step.show && !step.done && (
+            <Text
+              as="span"
+              fontSize="xs"
+              fontWeight="bold"
+              color="colorPalette.fg"
+              aria-hidden
+              animation="workbench-tour-nudge 1.2s ease-in-out infinite"
+              _motionReduce={{ animation: "none" }}
+            >
+              ← try it
+            </Text>
           )}
         </HStack>
         <HStack gap="2">
