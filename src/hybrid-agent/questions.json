@@ -1,0 +1,53 @@
+{
+  "$comment": "Questions for scripts/record-hybrid.py. Every answer is fixed by the numbers in the question, so no search is needed; each was worked by hand (see `working`). `match` is how a prediction is scored.",
+  "questions": [
+    {
+      "id": "zeros",
+      "source": "HybridAgent examples (q4)",
+      "question": "How many trailing zeros does 100! have?",
+      "answer": "24",
+      "match": { "type": "number", "value": 24, "tolerance": 0 },
+      "working": "floor(100/5) + floor(100/25) = 20 + 4 = 24"
+    },
+    {
+      "id": "sunlight",
+      "source": "HybridAgent examples (q2)",
+      "question": "How many minutes does light take to travel from the Sun to the Earth? Round to the nearest minute.",
+      "answer": "8",
+      "match": { "type": "number", "value": 8, "tolerance": 0 },
+      "working": "1.496e11 m / 2.998e8 m/s = 499 s = 8.3 min, rounds to 8"
+    },
+    {
+      "id": "batch-asr",
+      "source": "voice",
+      "question": "A batch speech recognizer only starts once the caller stops talking, and it runs at a real-time factor of 0.12. How many milliseconds does it take to transcribe a 6-second utterance?",
+      "answer": "720",
+      "match": { "type": "number", "value": 720, "tolerance": 0 },
+      "working": "6 s x 0.12 = 0.72 s = 720 ms"
+    },
+    {
+      "id": "g711",
+      "source": "voice",
+      "question": "A G.711 voice call sends one packet every 20 ms. Each packet carries 160 bytes of audio plus 40 bytes of IPv4, UDP and RTP headers. Ignoring link-layer overhead, how many such calls fit in 10 megabits per second in one direction?",
+      "answer": "125",
+      "match": { "type": "number", "value": 125, "tolerance": 0 },
+      "working": "200 bytes x 50 packets/s = 10,000 B/s = 80 kbit/s per call; 10,000 kbit/s / 80 = 125"
+    },
+    {
+      "id": "budget",
+      "source": "voice",
+      "question": "A voice agent's reply waits for 500 ms of endpointing, 30 ms of uplink, 120 ms of speech recognition, 480 ms to the language model's first token, 117 ms to the first speakable chunk, 180 ms to the first synthesised audio and 150 ms of downlink and playout. How many seconds is that in total? Round to two decimal places.",
+      "answer": "1.58",
+      "match": { "type": "number", "value": 1.58, "tolerance": 0.005 },
+      "working": "500+30+120+480+117+180+150 = 1577 ms = 1.577 s, rounds to 1.58"
+    },
+    {
+      "id": "erlangs",
+      "source": "voice",
+      "question": "A contact centre receives 120 calls per hour and each call lasts 3 minutes on average. How many Erlangs of traffic is that?",
+      "answer": "6",
+      "match": { "type": "number", "value": 6, "tolerance": 0 },
+      "working": "120 calls/h x 3 min = 360 call-minutes per 60 minutes = 6 Erlangs"
+    }
+  ]
+}
