@@ -1,0 +1,19 @@
+# gitleaks configuration: the default rules, plus one documented exception.
+#
+# src/stir-shaken/fixtures.ts holds worked-example STIR/SHAKEN PASSporTs for
+# the inspector. PASSporTs are JWTs by design, so token detectors match them,
+# but they are test fixtures: fictional 555 numbers, example-domain
+# certificate URLs, signed with a throwaway key whose private half has never
+# been committed. See the banner in that file and SECURITY.md.
+#
+# The exception is scoped to that one file. Everything else, including the
+# rest of src/stir-shaken, is scanned with the default rules.
+
+title = "gsinh/workbench"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "STIR/SHAKEN PASSporT test fixtures (not credentials)"
+paths = ['''^src/stir-shaken/fixtures\.ts$''']
